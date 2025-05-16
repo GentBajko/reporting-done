@@ -1,20 +1,21 @@
 from typing import TYPE_CHECKING
+from datetime import date
 
 from ulid import ULID
 
 
-class OfficeCalendar:
+class OfficeAvailability:  # Renamed class
     if TYPE_CHECKING:
         id: str
         user_id: str
-        day: str
+        day: date
         present: bool
 
-    def __init__(self, user_id: str, day, present=False):
+    def __init__(self, user_id: str, day: date, present: bool = False):
         self.id = str(ULID())
         self.user_id = user_id
         self.day = day
-        self.present = False
+        self.present = present
 
     @property
     def _id(self):
@@ -29,5 +30,5 @@ class OfficeCalendar:
             "id": self.id,
             "user_id": self.user_id,
             "day": self.day,
-            "present": self.present
+            "present": self.present,
         }

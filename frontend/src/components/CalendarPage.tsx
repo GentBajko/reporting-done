@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
 import { HiPlus } from "react-icons/hi";
-import { useAuth } from "../contexts/AuthContext"; // Added useAuth
-import Modal from "./Modal"; // Adjust path if necessary
+import { useAuth } from "../contexts/AuthContext";
+import Modal from "./Modal";
 
-// Backend response models (simplified for frontend context)
 interface BackendDailyAvailability {
-  date: string; // YYYY-MM-DD
-  status: string; // e.g., "Office", "Remote", "Off"
+  date: string;
+  status: string;
   day_of_week: number;
 }
 
@@ -14,9 +13,8 @@ interface BackendTask {
   id: string;
   title: string;
   description: string;
-  timestamp: number; // Unix timestamp for creation date
+  timestamp: number;
   status: string | null;
-  // Add other relevant fields like project_name if needed for display
 }
 
 interface BackendUserCalendarResponse {
@@ -31,7 +29,7 @@ interface BackendUserCalendarResponse {
 interface CalendarEvent {
   id: string;
   title: string;
-  date: string; // ISO string for fullcalendar or YYYY-MM-DD for list view
+  date: string;
   type:
     | "Meeting"
     | "Deadline"
@@ -41,9 +39,9 @@ interface CalendarEvent {
     | "Office"
     | "Remote"
     | "Off"
-    | "OtherEvent"; // Expanded types
+    | "OtherEvent";
   description?: string;
-  originalType?: string; // To store original status from availability if needed
+  originalType?: string;
 }
 
 const getEventTypeClass = (type: CalendarEvent["type"]) => {
@@ -70,14 +68,13 @@ const getEventTypeClass = (type: CalendarEvent["type"]) => {
 };
 
 const CalendarPage = () => {
-  const { user, isLoadingAuth } = useAuth(); // Get current user
+  const { user, isLoadingAuth } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date()); // For month/year navigation
+  const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date());
 
-  // Form state for new event
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventDate, setNewEventDate] = useState("");
   const [newEventDescription, setNewEventDescription] = useState("");
@@ -93,15 +90,14 @@ const CalendarPage = () => {
     setNewEventType("Meeting");
   };
 
-  // Fetch calendar data (tasks and availability)
   useEffect(() => {
-    if (isLoadingAuth || !user?.id) return; // Wait for auth and user ID
+    if (isLoadingAuth || !user?.id) return;
 
     const fetchCalendarData = async () => {
       setIsLoading(true);
       setError(null);
       const year = currentDisplayDate.getFullYear();
-      const month = currentDisplayDate.getMonth() + 1; // Backend expects 1-indexed month
+      const month = currentDisplayDate.getMonth() + 1;
 
       try {
         const response = await fetch(
@@ -114,34 +110,29 @@ const CalendarPage = () => {
 
         const fetchedEvents: CalendarEvent[] = [];
 
-        // Transform availability data
         data.availability.forEach((avail) => {
           let eventType: CalendarEvent["type"] = "OtherEvent";
           if (avail.status === "Office") eventType = "Office";
           else if (avail.status === "Remote") eventType = "Remote";
           else if (avail.status === "Off") eventType = "Off";
-          // else if (avail.status === "Holiday") eventType = "Holiday"; // if backend sends Holiday status
 
-          // Only add if it's a recognized status to avoid cluttering with default "Remote"
           if (eventType !== "OtherEvent" && eventType !== "Remote") {
             fetchedEvents.push({
               id: `avail-${avail.date}-${user.id}`,
               title: `${avail.status} Day`,
-              date: avail.date, // YYYY-MM-DD format
+              date: avail.date,
               type: eventType,
               originalType: avail.status,
             });
           }
         });
 
-        // Transform task data
         data.tasks.forEach((task) => {
           fetchedEvents.push({
             id: `task-${task.id}`,
             title: task.title,
-            // Use task.timestamp (creation) as the date for now.
-            // Ideally, tasks would have a due_date for calendar display.
-            date: new Date(task.timestamp * 1000).toISOString().split("T")[0], // Convert to YYYY-MM-DD
+
+            date: new Date(task.timestamp * 1000).toISOString().split("T")[0],
             type: "Task",
             description: task.description,
           });
@@ -168,7 +159,7 @@ const CalendarPage = () => {
     const newEvent: CalendarEvent = {
       id: String(Date.now()),
       title: newEventTitle,
-      date: new Date(newEventDate).toISOString(), // Ensure date is stored consistently
+      date: new Date(newEventDate).toISOString(),
       type: newEventType,
       description: newEventDescription,
     };
@@ -184,7 +175,6 @@ const CalendarPage = () => {
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center mb-6">
-        {/* Title is in the header, so we might not need it here or it could be more specific */}
         <button
           onClick={openModal}
           className="bg-[#002F41] hover:bg-[#004057] text-white font-semibold py-2 px-4 rounded inline-flex items-center transition duration-150"
@@ -194,12 +184,10 @@ const CalendarPage = () => {
         </button>
       </div>
 
-      {/* Placeholder for a full calendar view component */}
       <div className="bg-white shadow-md rounded-lg p-6 min-h-[400px] flex items-center justify-center text-gray-400">
         <p className="text-lg">Full Calendar View Component (Placeholder)</p>
       </div>
 
-      {/* List view of upcoming events for now */}
       <div className="space-y-4">
         <h2 className="text-xl font-semibold text-gray-700">Upcoming Events</h2>
         {events.length === 0 ? (

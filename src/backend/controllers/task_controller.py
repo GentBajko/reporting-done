@@ -5,7 +5,7 @@ from datetime import datetime
 
 from loguru import logger
 from fastapi import Form, Query, Depends, Request, APIRouter, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 
 from backend.models import TaskCreateModel, TaskResponseModel
 from core.models.log import Log
@@ -26,7 +26,6 @@ from backend.views.task_view import (
 )
 from backend.dependencies.auth import (
     is_admin,
-    validate_csrf,
     get_current_user,
 )
 from backend.models.pagination import Pagination

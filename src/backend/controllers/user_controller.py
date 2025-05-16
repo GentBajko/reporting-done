@@ -13,8 +13,9 @@ from backend.models import (
 )
 from core.models.log import Log
 from database.models import (
-    user_mapper,  # noqa F401,
-    calendar_mapper,  # noqa F401
+    user_mapper,
+    project_mapper,
+    availability_mapper,
 )
 from core.models.task import Task
 from core.models.user import User
@@ -123,7 +124,7 @@ def get_user_options(
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    order_by = [User.full_name]  # type: ignore
+    order_by = [User.full_name]
 
     pagination = Pagination(limit=limit, current_page=page, order_by=order_by)
 

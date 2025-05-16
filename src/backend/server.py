@@ -13,14 +13,17 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from config.env import ENV
 from backend.views.log_view import get_projects_with_recent_logs
 from backend.controllers.log_controller import log_router
+from backend.controllers.auth_controller import auth_router
 from backend.controllers.task_controller import task_router
 from backend.controllers.user_controller import user_router
 from backend.controllers.project_controller import project_router
 from backend.controllers.dashboard_controller import dashboard_router
 from backend.controllers.healthcheck_controller import healthcheck_router
-from backend.controllers.calendar_controller import calendar_router
+from backend.controllers.availability_controller import availability_router
+from backend.controllers.new_calendar_controller import new_calendar_router
 
 scheduler = AsyncIOScheduler()
+
 
 async def scheduled_get_projects_with_recent_logs():
     try:
@@ -29,12 +32,11 @@ async def scheduled_get_projects_with_recent_logs():
     except Exception as e:
         logger.error(f"Error running scheduled task: {e}")
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Configure the trigger for daily at 11:59 PM
     trigger = CronTrigger(hour=23, minute=57)
 
-    # Add the asynchronous job to the scheduler
     scheduler.add_job(
         scheduled_get_projects_with_recent_logs,
         trigger,
@@ -48,7 +50,9 @@ async def lifespan(app: FastAPI):
 
     yield
 
+
 app = FastAPI(title="Division5 Reports API", version="0.1.0")
+
 
 class LogRequestMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -115,4 +119,6 @@ app.include_router(project_router, tags=["Project"])
 app.include_router(task_router, tags=["Task"])
 app.include_router(log_router, tags=["Log"])
 app.include_router(dashboard_router, tags=["Dashboard"])
-app.include_router(calendar_router, tags=["Calendar"])
+app.include_router(availability_router, tags=["Availability"])
+app.include_router(new_calendar_router, tags=["New Calendar"])
+app.include_router(auth_router, tags=["Auth"])
