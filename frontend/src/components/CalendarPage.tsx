@@ -1,43 +1,50 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { HiPlus } from "react-icons/hi";
+import { useAuth } from "../contexts/AuthContext"; // Added useAuth
 import Modal from "./Modal"; // Adjust path if necessary
+
+// Backend response models (simplified for frontend context)
+interface BackendDailyAvailability {
+  date: string; // YYYY-MM-DD
+  status: string; // e.g., "Office", "Remote", "Off"
+  day_of_week: number;
+}
+
+interface BackendTask {
+  id: string;
+  title: string;
+  description: string;
+  timestamp: number; // Unix timestamp for creation date
+  status: string | null;
+  // Add other relevant fields like project_name if needed for display
+}
+
+interface BackendUserCalendarResponse {
+  user_id: string;
+  user_name: string;
+  year: number;
+  month: number;
+  availability: BackendDailyAvailability[];
+  tasks: BackendTask[];
+}
 
 interface CalendarEvent {
   id: string;
   title: string;
-  date: string; // ISO string or a Date object, manage accordingly
-  type: "Meeting" | "Deadline" | "Reminder" | "Holiday";
+  date: string; // ISO string for fullcalendar or YYYY-MM-DD for list view
+  type:
+    | "Meeting"
+    | "Deadline"
+    | "Reminder"
+    | "Holiday"
+    | "Task"
+    | "Office"
+    | "Remote"
+    | "Off"
+    | "OtherEvent"; // Expanded types
   description?: string;
+  originalType?: string; // To store original status from availability if needed
 }
-
-const mockEventsData: CalendarEvent[] = [
-  {
-    id: "evt-1",
-    title: "Team Sync Meeting",
-    date: new Date(new Date().setDate(new Date().getDate() + 2)).toISOString(), // 2 days from now
-    type: "Meeting",
-    description: "Discuss weekly progress and blockers.",
-  },
-  {
-    id: "evt-2",
-    title: "Project Alpha Deadline",
-    date: new Date(new Date().setDate(new Date().getDate() + 7)).toISOString(), // 1 week from now
-    type: "Deadline",
-  },
-  {
-    id: "evt-3",
-    title: "Client Call - Project Beta",
-    date: new Date(new Date().setDate(new Date().getDate() + 3)).toISOString(), // 3 days from now
-    type: "Meeting",
-    description: "Feedback session with Client Y.",
-  },
-  {
-    id: "evt-4",
-    title: "Submit Q3 Report",
-    date: new Date(new Date().setDate(new Date().getDate() + 10)).toISOString(), // 10 days from now
-    type: "Reminder",
-  },
-];
 
 const getEventTypeClass = (type: CalendarEvent["type"]) => {
   switch (type) {
@@ -49,14 +56,26 @@ const getEventTypeClass = (type: CalendarEvent["type"]) => {
       return "bg-yellow-500";
     case "Holiday":
       return "bg-green-500";
+    case "Task":
+      return "bg-purple-500";
+    case "Office":
+      return "bg-indigo-500";
+    case "Remote":
+      return "bg-teal-500";
+    case "Off":
+      return "bg-gray-400";
     default:
       return "bg-gray-500";
   }
 };
 
 const CalendarPage = () => {
+  const { user, isLoadingAuth } = useAuth(); // Get current user
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [events, setEvents] = useState<CalendarEvent[]>(mockEventsData);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date()); // For month/year navigation
 
   // Form state for new event
   const [newEventTitle, setNewEventTitle] = useState("");
@@ -73,6 +92,76 @@ const CalendarPage = () => {
     setNewEventDescription("");
     setNewEventType("Meeting");
   };
+
+  // Fetch calendar data (tasks and availability)
+  useEffect(() => {
+    if (isLoadingAuth || !user?.id) return; // Wait for auth and user ID
+
+    const fetchCalendarData = async () => {
+      setIsLoading(true);
+      setError(null);
+      const year = currentDisplayDate.getFullYear();
+      const month = currentDisplayDate.getMonth() + 1; // Backend expects 1-indexed month
+
+      try {
+        const response = await fetch(
+          `/calendar/${user.id}?year=${year}&month=${month}`
+        );
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data: BackendUserCalendarResponse = await response.json();
+
+        const fetchedEvents: CalendarEvent[] = [];
+
+        // Transform availability data
+        data.availability.forEach((avail) => {
+          let eventType: CalendarEvent["type"] = "OtherEvent";
+          if (avail.status === "Office") eventType = "Office";
+          else if (avail.status === "Remote") eventType = "Remote";
+          else if (avail.status === "Off") eventType = "Off";
+          // else if (avail.status === "Holiday") eventType = "Holiday"; // if backend sends Holiday status
+
+          // Only add if it's a recognized status to avoid cluttering with default "Remote"
+          if (eventType !== "OtherEvent" && eventType !== "Remote") {
+            fetchedEvents.push({
+              id: `avail-${avail.date}-${user.id}`,
+              title: `${avail.status} Day`,
+              date: avail.date, // YYYY-MM-DD format
+              type: eventType,
+              originalType: avail.status,
+            });
+          }
+        });
+
+        // Transform task data
+        data.tasks.forEach((task) => {
+          fetchedEvents.push({
+            id: `task-${task.id}`,
+            title: task.title,
+            // Use task.timestamp (creation) as the date for now.
+            // Ideally, tasks would have a due_date for calendar display.
+            date: new Date(task.timestamp * 1000).toISOString().split("T")[0], // Convert to YYYY-MM-DD
+            type: "Task",
+            description: task.description,
+          });
+        });
+
+        setEvents(
+          fetchedEvents.sort(
+            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+          )
+        );
+      } catch (e: any) {
+        console.error("Failed to fetch calendar data:", e);
+        setError(e.message || "Failed to load calendar data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCalendarData();
+  }, [user?.id, isLoadingAuth, currentDisplayDate]);
 
   const handleAddEvent = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

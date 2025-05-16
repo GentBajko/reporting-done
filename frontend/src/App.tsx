@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from "react";
 import {
   HiOutlineBriefcase,
   HiOutlineCalendar,
@@ -36,10 +37,23 @@ import { useAuth } from "./contexts/AuthContext";
 const LoginPage = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const handleLogin = (isAdminLogin: boolean) => {
-    login(isAdminLogin);
-    navigate("/");
+  const handleLogin = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setError(null);
+    setIsLoading(true);
+    try {
+      await login(email, password);
+      navigate("/");
+    } catch (err: any) {
+      setError(err.message || "Login failed. Please check your credentials.");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -50,33 +64,106 @@ const LoginPage = () => {
         className="h-12 mb-8"
       />
       <h1 className="text-3xl mb-6 text-gray-800">D5 Reports Login</h1>
-      <div className="space-y-4">
+      <form
+        onSubmit={handleLogin}
+        className="w-full max-w-xs space-y-4 bg-white p-8 rounded-lg shadow-md"
+      >
+        <div>
+          <label
+            htmlFor="email"
+            className="block text-sm font-medium text-gray-700"
+          >
+            Email Address
+          </label>
+          <input
+            type="email"
+            id="email"
+            name="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            required
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            disabled={isLoading}
+          />
+        </div>
+        <div>
+          <label
+            htmlFor="password"
+            className="block text-sm font-medium text-gray-700"
+          >
+            Password
+          </label>
+          <input
+            type="password"
+            id="password"
+            name="password"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            required
+            className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            disabled={isLoading}
+          />
+        </div>
+        {error && (
+          <div className="text-sm text-red-600 bg-red-100 p-3 rounded">
+            {error}
+          </div>
+        )}
         <button
-          onClick={() => handleLogin(false)}
-          className="w-full px-6 py-3 bg-[#002F41] text-white rounded hover:bg-[#004057] transition duration-150 text-lg flex items-center justify-center"
+          type="submit"
+          disabled={isLoading}
+          className="w-full px-6 py-3 bg-[#002F41] text-white rounded hover:bg-[#004057] transition duration-150 text-lg flex items-center justify-center disabled:opacity-50"
         >
-          <HiOutlineLogin className="mr-2 h-5 w-5" /> Log In as User (Mock)
+          {isLoading ? (
+            <svg
+              className="animate-spin -ml-1 mr-3 h-5 w-5 text-white"
+              xmlns="http://www.w3.org/2000/svg"
+              fill="none"
+              viewBox="0 0 24 24"
+            >
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              ></circle>
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              ></path>
+            </svg>
+          ) : (
+            <HiOutlineLogin className="mr-2 h-5 w-5" />
+          )}
+          {isLoading ? "Logging in..." : "Log In"}
         </button>
-        <button
-          onClick={() => handleLogin(true)}
-          className="w-full px-6 py-3 bg-orange-500 text-white rounded hover:bg-orange-600 transition duration-150 text-lg flex items-center justify-center"
-        >
-          <HiOutlineLogin className="mr-2 h-5 w-5" /> Log In as Admin (Mock)
-        </button>
-      </div>
-      <p className="mt-6 text-sm text-gray-600">
-        (This is a mock login for demonstration)
-      </p>
+      </form>
     </div>
   );
 };
 
 const LogoutPage = () => {
   const { logout, isLoggedIn } = useAuth();
-  if (isLoggedIn) {
-    logout();
-  }
-  return <Navigate to="/user/login" replace />;
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const performLogout = async () => {
+      if (isLoggedIn) {
+        await logout();
+      }
+      navigate("/user/login", { replace: true });
+    };
+    performLogout();
+  }, [logout, isLoggedIn, navigate]);
+
+  return (
+    <div className="h-screen w-screen flex items-center justify-center">
+      <p>Logging out...</p>
+    </div>
+  );
 };
 
 const NavLink = ({
@@ -116,9 +203,17 @@ const getPageTitle = (pathname: string): string => {
 };
 
 const Layout = () => {
-  const { isLoggedIn, isAdmin, user } = useAuth();
+  const { isLoggedIn, isAdmin, user, isLoadingAuth } = useAuth();
   const location = useLocation();
   const pageTitle = getPageTitle(location.pathname);
+
+  if (isLoadingAuth) {
+    return (
+      <div className="flex items-center justify-center h-screen w-screen bg-gray-100">
+        <p className="text-xl text-gray-700">Loading application...</p>
+      </div>
+    );
+  }
 
   if (!isLoggedIn) {
     return <Navigate to="/user/login" replace />;

@@ -5,6 +5,7 @@ import {
   HiChevronRight,
   HiInformationCircle,
 } from "react-icons/hi";
+import { useAuth } from "../contexts/AuthContext";
 
 // Mock current user role - replace with actual auth context or prop
 const USER_ROLE: "admin" | "user" = "admin"; // or "user"
@@ -20,67 +21,110 @@ interface Day {
 }
 
 const AvailabilityPage = () => {
-  const [selectedUser, setSelectedUser] = useState<string>(CURRENT_USER_ID);
-  const [usersList, setUsersList] = useState<{ id: string; name: string }[]>(
-    []
-  );
+  const { user, isAdmin } = useAuth();
+  const [selectedUserId, setSelectedUserId] = useState<string>(user?.id || "");
+  const [usersForSelector, setUsersForSelector] = useState<
+    { id: string; full_name: string }[]
+  >([]);
   const [currentDate, setCurrentDate] = useState(new Date()); // For month navigation
   const [officeDays, setOfficeDays] = useState<Set<string>>(new Set()); // Stores "YYYY-MM-DD" strings
   const [isLoading, setIsLoading] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const minOfficeDaysPerWeek = 2;
 
-  // --- Mock User & Availability Data ---
+  // Fetch users for admin selector
   useEffect(() => {
-    setIsLoading(true);
-    setError(null);
-
-    if (USER_ROLE === "admin") {
-      setTimeout(() => {
-        setUsersList([
-          { id: "usr-self", name: "My Availability (Self)" },
-          { id: "usr-1", name: "Alice Wonderland" },
-          { id: "usr-2", name: "Bob The Builder" },
-        ]);
-      }, 300);
-    }
-
-    // Simulate fetching availability for the selected user and current month
-    // In a real app, this would depend on selectedUser and currentDate (for month/year)
-    console.log(
-      `Mock fetch for user: ${selectedUser}, month: ${
-        currentDate.getMonth() + 1
-      }`
-    );
-    setTimeout(() => {
-      // Example: Load some mock office days if it's Alice for the current month
-      if (selectedUser === "usr-1") {
-        const today = new Date(currentDate);
-        const mockDays = new Set<string>();
-        // Add first Monday and Tuesday of the current month as office days for Alice
-        let d = new Date(today.getFullYear(), today.getMonth(), 1);
-        let mondays = 0;
-        while (d.getMonth() === today.getMonth() && mondays < 2) {
-          if (d.getDay() === 1) {
-            // Monday (0=Sun, 1=Mon, ...)
-            mockDays.add(d.toISOString().split("T")[0]);
-            const tues = new Date(d);
-            tues.setDate(d.getDate() + 1);
-            if (tues.getMonth() === today.getMonth()) {
-              mockDays.add(tues.toISOString().split("T")[0]);
-            }
-            mondays++;
-          }
-          d.setDate(d.getDate() + 1);
+    if (isAdmin) {
+      const fetchUsers = async () => {
+        try {
+          // Assuming an endpoint like /api/users/options or similar exists or will be created
+          // For now, using /user/ and expecting it to return List[UserResponseModel]
+          // This needs to be coordinated with user_controller.py modifications
+          const response = await fetch("/user/", {
+            headers: { Accept: "application/json" },
+          });
+          if (!response.ok)
+            throw new Error("Failed to fetch users for selector");
+          const data = await response.json(); // Expects List[UserResponseModel] or similar
+          setUsersForSelector(
+            data.map((u: any) => ({
+              id: u.id,
+              full_name: u.full_name || u.username || u.email,
+            }))
+          );
+          if (user?.id) setSelectedUserId(user.id); // Default to current admin's view first
+        } catch (err: any) {
+          console.error("Error fetching users for selector:", err);
+          // setError("Could not load users list"); // Optionally show error
         }
-        setOfficeDays(mockDays);
-      } else {
-        setOfficeDays(new Set()); // Default to no office days
+      };
+      fetchUsers();
+    } else {
+      if (user?.id) setSelectedUserId(user.id);
+    }
+  }, [isAdmin, user?.id]);
+
+  // Fetch availability for the selected user and current month
+  useEffect(() => {
+    if (!selectedUserId) return;
+
+    const fetchAvailability = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const year = currentDate.getFullYear();
+        const month = currentDate.getMonth() + 1; // API expects 1-indexed month
+        const response = await fetch(
+          `/calendar/${selectedUserId}?year=${year}&month=${month}`
+        );
+        if (!response.ok) {
+          if (response.status === 404) {
+            setOfficeDays(new Set());
+            console.log(
+              "No availability data found for this user/month, starting fresh."
+            );
+          } else {
+            throw new Error(`HTTP error! Status: ${response.status}`);
+          }
+        } else {
+          // Backend returns UserCalendarResponseModel which has an 'availability' array
+          // Each item in 'availability' is DailyAvailabilityResponseModel: { date: str, status: str, ... }
+          const data = await response.json();
+          if (data && data.availability && Array.isArray(data.availability)) {
+            const newOfficeDays = new Set<string>();
+            data.availability.forEach(
+              (dayInfo: { date: string; status: string }) => {
+                if (
+                  dayInfo.status &&
+                  dayInfo.status.toLowerCase() === "office"
+                ) {
+                  newOfficeDays.add(dayInfo.date);
+                }
+              }
+            );
+            setOfficeDays(newOfficeDays);
+          } else {
+            // Fallback or if data structure is unexpected from a 404 that still returned JSON
+            setOfficeDays(new Set());
+            console.warn(
+              "Unexpected data structure from availability API or no availability data.",
+              data
+            );
+          }
+        }
+      } catch (err: any) {
+        console.error("Error fetching availability:", err);
+        setError(err.message || "Could not load availability data.");
+      } finally {
+        setIsLoading(false);
       }
-      setIsLoading(false);
-    }, 700);
-  }, [selectedUser, currentDate.getFullYear(), currentDate.getMonth()]); // Re-fetch on user or month change
+    };
+
+    fetchAvailability();
+    // Ensure selectedUserId is part of dependency array for re-fetch when admin changes user
+  }, [selectedUserId, currentDate.getFullYear(), currentDate.getMonth()]);
 
   const handleDayClick = (dateKey: string) => {
     setOfficeDays((prev) => {
@@ -214,21 +258,50 @@ const AvailabilityPage = () => {
       return;
     }
 
-    setIsLoading(true);
+    if (!selectedUserId) {
+      alert("No user selected to save availability for.");
+      return;
+    }
+    setIsSaving(true);
     setError(null);
-    console.log(
-      `Mock saving availability for user: ${selectedUser}, month: ${
-        currentDate.getMonth() + 1
-      }-${currentDate.getFullYear()}, office days:`,
-      Array.from(officeDays)
-    );
-    // TODO: Replace with actual API call
-    // Backend would receive the set of "YYYY-MM-DD" strings for office days
-    // It might need to calculate "remote days" if the API expects that.
-    setTimeout(() => {
-      setIsLoading(false);
-      alert("Availability saved successfully! (mock)");
-    }, 1500);
+
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth() + 1; // API expects 1-indexed month
+
+    const payload = {
+      office_dates: Array.from(officeDays),
+    };
+
+    try {
+      const response = await fetch(
+        `/calendar/${selectedUserId}?year=${year}&month=${month}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ detail: "Save failed. Unknown error." }));
+        throw new Error(
+          errorData.detail || `HTTP error! Status: ${response.status}`
+        );
+      }
+
+      // const result = await response.json(); // Contains success message and counts
+      alert("Availability saved successfully!"); // Or use result.message
+    } catch (err: any) {
+      console.error("Error saving availability:", err);
+      setError(err.message || "Could not save availability.");
+      alert(`Error: ${err.message}`);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const officeDaysInCurrentMonth = Array.from(officeDays).filter((d) => {
@@ -246,23 +319,23 @@ const AvailabilityPage = () => {
           <HiCalendar className="mr-3 h-7 w-7 text-[#002F41]" />
           Monthly Office Availability
         </h1>
-        {USER_ROLE === "admin" && (
+        {isAdmin && usersForSelector.length > 0 && (
           <div className="w-full sm:w-auto">
             <label
-              htmlFor="user-select"
+              htmlFor="userSelector"
               className="block text-sm font-medium text-gray-700 mb-1"
             >
-              View/Edit For:
+              View Availability For:
             </label>
             <select
-              id="user-select"
-              value={selectedUser}
-              onChange={(e) => setSelectedUser(e.target.value)}
-              className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md shadow-sm"
+              id="userSelector"
+              value={selectedUserId}
+              onChange={(e) => setSelectedUserId(e.target.value)}
+              className="mt-1 block w-full sm:w-64 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md shadow-sm"
             >
-              {usersList.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.name}
+              {usersForSelector.map((u) => (
+                <option key={u.id} value={u.id}>
+                  {u.full_name}
                 </option>
               ))}
             </select>
@@ -396,10 +469,10 @@ const AvailabilityPage = () => {
             <div className="mt-8 flex justify-end">
               <button
                 onClick={handleSubmit}
-                disabled={isLoading}
-                className="bg-[#002F41] hover:bg-[#004057] text-white font-semibold py-2.5 px-6 rounded-lg transition duration-150 focus:outline-none focus:ring-2 focus:ring-[#005A7D] focus:ring-opacity-50 disabled:bg-gray-400"
+                disabled={isSaving || isLoading}
+                className="px-6 py-2.5 bg-[#002F41] text-white font-semibold rounded-lg shadow-md hover:bg-[#004057] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#002F41] disabled:opacity-50 transition duration-150"
               >
-                {isLoading ? "Saving..." : "Save Monthly Availability"}
+                {isSaving ? "Saving..." : "Save Availability"}
               </button>
             </div>
           </>

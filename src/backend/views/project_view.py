@@ -66,20 +66,30 @@ def update_project(
     Update an existing project's information.
     """
     with session as s:
-        repository = Repository(s, Project)
-        existing_project = repository.get(project_id)
+        repo = Repository[Project](s, Project)
+        project = repo.get(
+            id=project_id, options=[Project.developers, Project.tasks]
+        )  # type: ignore
 
-        if not existing_project:
+        if not project:
             raise ValueError(f"Project with id {project_id} does not exist.")
 
-        project_data = project_update.model_dump(exclude_unset=True)
+        for attr, value in project_update.model_dump(
+            exclude_unset=True
+        ).items():
+            setattr(project, attr, value)
 
-        for key, value in project_data.items():
-            setattr(existing_project, key, value)
-
-        repository.update(existing_project)
-        project_dict = existing_project.to_dict()
-    return ProjectResponseModel.model_validate(project_dict)
+        s.commit()
+        # Re-fetch to populate relationships like developers and tasks for the response model
+        updated_project_orm = repo.get(
+            id=project_id, options=[Project.developers, Project.tasks]
+        )  # type: ignore
+        if not updated_project_orm:
+            raise ValueError(
+                "Project disappeared after update"
+            )  # Should not happen
+        project_data = updated_project_orm.to_dict()
+    return ProjectResponseModel.model_validate(project_data)
 
 
 def upsert_project(

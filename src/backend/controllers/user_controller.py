@@ -1,11 +1,15 @@
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import Form, Query, Depends, Request, APIRouter, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from pydantic import BaseModel
+from fastapi.responses import Response, HTMLResponse, RedirectResponse
 
 from backend.models import (
     UserCreateModel,
+    LogResponseModel,
+    TaskResponseModel,
     UserResponseModel,
+    ProjectResponseModel,
 )
 from core.models.log import Log
 from database.models import (
@@ -37,6 +41,7 @@ from backend.models.pagination import Pagination
 from backend.views.project_view import get_project
 from database.interfaces.session import ISession
 from backend.utils.filters_and_sort import get_filters, get_sorting
+from database.interfaces.repository import Repository
 
 user_router = APIRouter(prefix="/user")
 
@@ -58,7 +63,7 @@ def is_admin_endpoint(
     return is_admin(current_user)
 
 
-@user_router.post("/")
+@user_router.post("/", response_model=UserResponseModel)
 async def create_user_endpoint(
     request: Request,
     email: str = Form(...),
@@ -74,10 +79,10 @@ async def create_user_endpoint(
         password=password,
         permissions=permissions,
     )
-    return templates.TemplateResponse(
-        "user/detail.html",
-        {"request": request, "user": create_user(user, session)},
-    )
+    created_user_model = create_user(user, session)
+    if not created_user_model:
+        raise HTTPException(status_code=400, detail="User creation failed.")
+    return created_user_model
 
 
 @user_router.get("/login", response_class=HTMLResponse)
@@ -134,26 +139,49 @@ def get_user_options(
     return HTMLResponse("\n".join(html_options))
 
 
-@user_router.get("/{user_id}", response_class=HTMLResponse)
+@user_router.get("/{user_id}", response_model=UserResponseModel)
 def get_user_endpoint(
-    request: Request, user_id: str, session: ISession = Depends(get_session)
+    request: Request,
+    user_id: str,
+    session: ISession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
+    if current_user.id != user_id and not is_admin(current_user):
+        raise HTTPException(
+            status_code=403, detail="Not authorized to view this profile"
+        )
+
     user = get_user(session, id=user_id)
     if not user:
-        return RedirectResponse(url="/user/login", status_code=302)
+        raise HTTPException(status_code=404, detail="User not found")
 
-    return templates.TemplateResponse(
-        "user/detail.html", {"request": request, "user": user}
-    )
+    return user
+
+
+class UserProfileUpdateModel(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    permissions: Optional[int] = None
 
 
 @user_router.put("/{user_id}", response_model=UserResponseModel)
 def update_user_endpoint(
     user_id: str,
-    user_update: UserCreateModel,
+    user_update_data: UserProfileUpdateModel,
     session: ISession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
 ):
-    return update_user(user_id, user_update, session)
+    if current_user.id != user_id and not is_admin(current_user):
+        raise HTTPException(
+            status_code=403, detail="Not authorized to update this profile"
+        )
+
+    updated_user_model = update_user(user_id, user_update_data, session)
+    if not updated_user_model:
+        raise HTTPException(
+            status_code=404, detail="User not found or update failed"
+        )
+    return updated_user_model
 
 
 @user_router.post("/upsert", response_model=UserResponseModel)
@@ -163,17 +191,20 @@ def upsert_user_endpoint(
     return upsert_user(user, session)
 
 
-@user_router.get("/", response_class=HTMLResponse)
+@user_router.get("/", response_model=List[UserResponseModel])
 def get_all_users_endpoint(
     request: Request,
-    page: int = 1,
-    sort: Optional[str] = None,
-    order: Optional[str] = None,
-    limit: int = 15,
-    combined_filters: Optional[str] = Query(None),
+    page: int = Query(1, alias="page"),
+    sort: Optional[str] = Query(None, alias="sort"),
+    order: Optional[str] = Query(None, alias="order"),
+    limit: int = Query(15, alias="limit"),
+    combined_filters: Optional[str] = Query(None, alias="filters"),
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
+    if not is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Access forbidden")
+
     filter_mapping = {
         "Name": "full_name",
         "Email": "email",
@@ -189,21 +220,41 @@ def get_all_users_endpoint(
 
     filters = get_filters(combined_filters, filter_mapping, "Name")
 
-    users, pagination = get_all_users(session, pagination, **filters)
+    users, _ = get_all_users(session, pagination, **filters)
 
-    return templates.TemplateResponse(
-        "user/users.html",
-        {
-            "request": request,
-            "headers": ["Name", "Email", "Projects", "Tasks"],
-            "data": users,
-            "pagination": pagination,
-            "entity": "user",
-            "current_sort": sort,
-            "current_order": order,
-            "allowed_filter_fields": filter_mapping.keys(),
-        },
-    )
+    return users
+
+
+@user_router.delete("/{user_id}", status_code=204)
+async def delete_user_endpoint(
+    user_id: str,
+    session: ISession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    if not is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Access forbidden")
+
+    with session as s:
+        repo = Repository(s, User)
+        user_to_delete = repo.get(id=user_id)
+        if not user_to_delete:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        # Basic check: Prevent deleting oneself
+        if user_to_delete.id == current_user.id:
+            raise HTTPException(
+                status_code=400,
+                detail="Cannot delete your own account as admin.",
+            )
+
+        # TODO: Add more sophisticated checks if user is tied to critical data
+        # For example, check if user has active projects or tasks assigned.
+        # For now, direct delete.
+
+        repo.delete(user_to_delete)
+        s.commit()
+
+    return Response(status_code=204)
 
 
 @user_router.get("/{user_id}/projects", response_class=HTMLResponse)
@@ -344,3 +395,19 @@ def get_logs_by_user_endpoint(
         "current_order": order,
     }
     return templates.TemplateResponse("log/logs.html", context)
+
+
+@user_router.get("/me", response_model=Optional[UserResponseModel])
+async def get_current_user_details(
+    request: Request,
+    current_user_instance: User = Depends(get_current_user),
+):
+    if isinstance(current_user_instance, User):
+        return UserResponseModel.model_validate(
+            current_user_instance.to_dict()
+        )
+
+    if not isinstance(current_user_instance, User):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    return UserResponseModel.model_validate(current_user_instance.to_dict())

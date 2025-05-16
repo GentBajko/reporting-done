@@ -5,6 +5,7 @@ from backend.models import TaskCreateModel, TaskResponseModel
 from core.models.log import Log
 from database.models import task_mapper  # noqa F401
 from core.models.task import Task
+from core.models.user import User
 from core.models.project import Project
 from backend.models.models import LogResponseModel
 from backend.utils.pagination import calculate_pagination
@@ -19,31 +20,35 @@ def create_task(task: TaskCreateModel, session: ISession) -> TaskResponseModel:
     """
     with session as s:
         project_repo = Repository(s, Project)
-
         project = project_repo.get(id=task.project_id)
 
         if not project:
-            raise ValueError("Project not found")
+            raise ValueError(f"Project with ID {task.project_id} not found")
+
+        user_repo = Repository(s, User)
+        user = user_repo.get(id=task.user_id)
+
+        if not user:
+            raise ValueError(f"User with ID {task.user_id} not found")
 
         repo = Repository(s, Task)
-
 
         new_task = Task(
             project_id=project.id,
             project_name=project.name,
-            user_id=task.user_id,
-            user_name=task.user_name,
+            user_id=user.id,
+            user_name=user.full_name,
             title=task.title,
             hours_required=task.hours_required,
             description=task.description,
             timestamp=int(datetime.datetime.now().timestamp()),
             logs=[],
+            status=task.status,
         )
 
         repo.create(new_task)
         s.commit()
         task_data = new_task.to_dict()
-        task_data["project_name"] = project.name
     return TaskResponseModel.model_validate(task_data)
 
 

@@ -68,11 +68,12 @@ class ProjectCreateModel(BaseModel):
     email: Optional[EmailStr] = None
     archived: bool = False
 
-    @validator('email', pre=True, always=True)
+    @validator("email", pre=True, always=True)
     def empty_str_to_none(cls, v):
-        if v == '':
+        if v == "":
             return None
         return v
+
 
 class ProjectResponseModel(BaseModel):
     id: str
@@ -83,11 +84,12 @@ class ProjectResponseModel(BaseModel):
     developers: List["UserResponseModel"] = Field(default_factory=list)
     tasks: List[TaskResponseModel] = Field(default_factory=list)
 
-    @validator('email', pre=True, always=True)
+    @validator("email", pre=True, always=True)
     def empty_str_to_none(cls, v):
-        if v == '':
+        if v == "":
             return None
         return v
+
 
 class UserCreateModel(BaseModel):
     email: EmailStr

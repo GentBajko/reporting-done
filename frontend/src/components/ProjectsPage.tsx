@@ -1,8 +1,9 @@
-import { useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   HiOutlineEye,
   HiOutlineMail,
   HiOutlinePencil,
+  HiOutlineTrash,
   HiOutlineUserGroup,
   HiPlus,
 } from "react-icons/hi";
@@ -33,6 +34,14 @@ interface Project {
 
 // Corresponds to ProjectCreateModel
 interface NewProjectData {
+  name: string;
+  email: string | null;
+  send_email: boolean;
+  archived: boolean;
+}
+
+// Corresponds to ProjectCreateModel for both create and update
+interface ProjectFormData {
   name: string;
   email: string | null;
   send_email: boolean;
@@ -84,13 +93,46 @@ const getStatusClass = (archived: boolean) => {
 
 const ProjectsPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [projects, setProjects] = useState<Project[]>(mockProjectsData);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   // Form state for new project, aligned with NewProjectData
   const [newProjectName, setNewProjectName] = useState("");
   const [newProjectEmail, setNewProjectEmail] = useState(""); // Store as string, convert to null if empty
   const [newProjectSendEmail, setNewProjectSendEmail] = useState(false);
   const [newProjectArchived, setNewProjectArchived] = useState(false);
+
+  // Form state for editing a project (similar to new project)
+  const [editProjectName, setEditProjectName] = useState("");
+  const [editProjectEmail, setEditProjectEmail] = useState("");
+  const [editProjectSendEmail, setEditProjectSendEmail] = useState(false);
+  const [editProjectArchived, setEditProjectArchived] = useState(false);
+
+  useEffect(() => {
+    const fetchProjects = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        // TODO: Add query parameters for pagination, sorting, filtering if UI supports it
+        const response = await fetch("/project/");
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data: Project[] = await response.json();
+        setProjects(data);
+      } catch (e: any) {
+        console.error("Failed to fetch projects:", e);
+        setError(e.message || "Failed to load projects");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchProjects();
+  }, []);
 
   const openModal = () => setIsModalOpen(true);
   const closeModal = () => {
@@ -101,36 +143,193 @@ const ProjectsPage = () => {
     setNewProjectArchived(false);
   };
 
-  const handleCreateProject = (event: React.FormEvent<HTMLFormElement>) => {
+  const openEditModal = (projectToEdit: Project) => {
+    setEditingProject(projectToEdit);
+    setEditProjectName(projectToEdit.name);
+    setEditProjectEmail(projectToEdit.email || "");
+    setEditProjectSendEmail(projectToEdit.send_email);
+    setEditProjectArchived(projectToEdit.archived);
+    setIsEditModalOpen(true);
+  };
+
+  const closeEditModal = () => {
+    setIsEditModalOpen(false);
+    setEditingProject(null);
+    setEditProjectName("");
+    setEditProjectEmail("");
+    setEditProjectSendEmail(false);
+    setEditProjectArchived(false);
+  };
+
+  const handleCreateProject = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
     event.preventDefault();
 
-    const projectToCreate: NewProjectData = {
-      name: newProjectName,
-      email: newProjectEmail === "" ? null : newProjectEmail,
-      send_email: newProjectSendEmail,
-      archived: newProjectArchived,
-    };
+    // const projectToCreate: NewProjectData = { // This interface is good for type safety before sending
+    //   name: newProjectName,
+    //   email: newProjectEmail === "" ? null : newProjectEmail,
+    //   send_email: newProjectSendEmail,
+    //   archived: newProjectArchived,
+    // };
 
-    // In a real app, this object (projectToCreate) would be sent to the backend.
-    // The backend would return the created project including its ID, developers, tasks etc.
-    // For now, we'll mock this response.
-    const createdProject: Project = {
-      id: String(Date.now()), // Mock ID
-      ...projectToCreate,
-      developers: [], // Mock: new projects start with no developers assigned via this form
-      tasks: [], // Mock: new projects start with no tasks via this form
-    };
+    // Use FormData for sending to a FastAPI Form(...) endpoint
+    const formData = new FormData();
+    formData.append("name", newProjectName);
+    formData.append("email", newProjectEmail); // FastAPI handles empty string to None for Optional[EmailStr] if model validator is set, or send_email form field handles it
+    formData.append("send_email", String(newProjectSendEmail)); // FormData sends bools as strings "true"/"false"
+    formData.append("archived", String(newProjectArchived));
 
-    setProjects([createdProject, ...projects]);
-    closeModal();
-    alert(
-      `Project "${
-        createdProject.name
-      }" created! (mock)\n(Data for backend: ${JSON.stringify(
-        projectToCreate
-      )})`
-    );
+    try {
+      const response = await fetch("/project/", {
+        method: "POST",
+        body: formData,
+        // Headers for FormData are set automatically by the browser, including Content-Type: multipart/form-data
+        // If backend expects JSON, then: body: JSON.stringify(projectToCreate), headers: {'Content-Type': 'application/json'}
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({
+          detail: "Failed to create project. Unknown error.",
+        }));
+        throw new Error(
+          errorData.detail || `HTTP error! status: ${response.status}`
+        );
+      }
+
+      const createdProject: Project = await response.json();
+
+      setProjects([createdProject, ...projects]); // Add to top for visibility
+      closeModal();
+      // Optional: add a success notification
+      alert(`Project "${createdProject.name}" created successfully!`);
+    } catch (e: any) {
+      console.error("Failed to create project:", e);
+      setError(e.message || "Failed to create project");
+      alert(`Error creating project: ${e.message}`); // Show error to user
+    }
   };
+
+  const handleUpdateProject = async (
+    event: React.FormEvent<HTMLFormElement>
+  ) => {
+    event.preventDefault();
+    if (!editingProject) return;
+
+    const projectToUpdate: ProjectFormData = {
+      name: editProjectName,
+      email: editProjectEmail === "" ? null : editProjectEmail,
+      send_email: editProjectSendEmail,
+      archived: editProjectArchived,
+    };
+
+    // Backend PUT /project/{id} now expects JSON, but controller still has Form params
+    // For consistency with create (which used FormData) and to match the updated controller
+    // that still uses Form(...) parameters for PUT, we should send FormData.
+    // However, the controller was just changed to response_model=ProjectResponseModel.
+    // Let's assume the intention is to send JSON for PUT, matching typical REST APIs.
+    // If Form(...) is still used in PUT, this needs to be FormData.
+    // The controller's update_project_endpoint still has Form parameters.
+    // Let's stick to FormData to match the current backend PUT signature.
+
+    const formData = new FormData();
+    formData.append("name", editProjectName);
+    formData.append("email", editProjectEmail); // FastAPI handles empty string for Optional[EmailStr]
+    formData.append("send_email", String(editProjectSendEmail));
+    formData.append("archived", String(editProjectArchived));
+    // formData.append("csrftoken", "dummy_csrf_if_needed_and_not_handled_by_httpOnly_cookie"); // If CSRF is form based for PUT
+
+    try {
+      const response = await fetch(`/project/${editingProject.id}`, {
+        method: "PUT",
+        body: formData, // Using FormData as controller still has Form() params
+        // headers: { 'Content-Type': 'application/json' }, // Not for FormData
+      });
+
+      if (!response.ok) {
+        const errorData = await response
+          .json()
+          .catch(() => ({
+            detail: "Failed to update project. Unknown error.",
+          }));
+        throw new Error(
+          errorData.detail || `HTTP error! status: ${response.status}`
+        );
+      }
+
+      const updatedProject: Project = await response.json(); // Backend now returns JSON
+
+      setProjects(
+        projects.map((p) => (p.id === updatedProject.id ? updatedProject : p))
+      );
+      closeEditModal();
+      alert(`Project "${updatedProject.name}" updated successfully!`);
+    } catch (e: any) {
+      console.error("Failed to update project:", e);
+      setError(e.message || "Failed to update project");
+      alert(`Error updating project: ${e.message}`);
+    }
+  };
+
+  const handleDeleteProject = async (
+    projectId: string,
+    projectName: string
+  ) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to delete project "${projectName}" (ID: ${projectId})? This action cannot be undone.`
+      )
+    ) {
+      return;
+    }
+    setError(null);
+    try {
+      const response = await fetch(`/project/${projectId}`, {
+        method: "DELETE",
+        // Add Authorization header if required
+      });
+
+      if (!response.ok) {
+        if (response.status === 404) throw new Error("Project not found.");
+        if (response.status === 403)
+          throw new Error("Access forbidden to delete this project.");
+        // Add other specific error handling if backend provides more details
+        const errorData = await response
+          .json()
+          .catch(() => ({ detail: "Cannot delete project" }));
+        throw new Error(
+          errorData.detail || `HTTP error! status: ${response.status}`
+        );
+      }
+      // If DELETE is successful, status is 204 No Content, no JSON body
+      setProjects(projects.filter((p) => p.id !== projectId));
+      alert(`Project "${projectName}" deleted successfully.`);
+    } catch (err: any) {
+      console.error("Error deleting project:", err);
+      setError(err.message || "Failed to delete project.");
+      alert(`Error deleting project: ${err.message}`);
+    }
+  };
+
+  if (isLoading) {
+    return <div className="p-6 text-center">Loading projects...</div>;
+  }
+
+  if (error && projects.length === 0) {
+    // Only show full page error if no projects could be loaded initially
+    return (
+      <div className="p-6 bg-red-100 border border-red-400 text-red-700 rounded-lg shadow-md">
+        <h2 className="text-xl font-semibold mb-2">Error Loading Projects</h2>
+        <p>{error}</p>
+        <button
+          onClick={() => window.location.reload()} // Or a specific fetch function call
+          className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -186,6 +385,17 @@ const ProjectsPage = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
+            {projects.length === 0 && !isLoading && (
+              <tr>
+                <td
+                  colSpan={6}
+                  className="px-6 py-12 text-center text-gray-500"
+                >
+                  No projects found.
+                  {isModalOpen ? "" : " Click 'Create New Project' to add one."}
+                </td>
+              </tr>
+            )}
             {projects.map((project) => (
               <tr
                 key={project.id}
@@ -249,11 +459,20 @@ const ProjectsPage = () => {
                     <HiOutlineEye className="h-5 w-5" />
                   </button>
                   <button
-                    onClick={() => alert(`Edit ${project.name} - TBD`)}
-                    className="text-indigo-600 hover:text-indigo-900 p-1 rounded hover:bg-gray-200 transition duration-150"
+                    onClick={() => openEditModal(project)}
+                    className="text-indigo-600 hover:text-indigo-900 mr-2 p-1 rounded hover:bg-gray-200 transition duration-150"
                     title="Edit Project"
                   >
                     <HiOutlinePencil className="h-5 w-5" />
+                  </button>
+                  <button
+                    onClick={() =>
+                      handleDeleteProject(project.id, project.name)
+                    }
+                    className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-gray-200 transition duration-150"
+                    title="Delete Project"
+                  >
+                    <HiOutlineTrash className="h-5 w-5" />
                   </button>
                 </td>
               </tr>
@@ -261,11 +480,10 @@ const ProjectsPage = () => {
           </tbody>
         </table>
       </div>
-      {projects.length === 0 && (
-        <div className="text-center py-10 bg-white shadow-md rounded-lg">
-          <p className="text-gray-500">
-            No projects found. Get started by creating a new one!
-          </p>
+
+      {error && (
+        <div className="p-3 bg-red-100 text-red-700 rounded-md">
+          Error creating project: {error}. Some data might be stale.
         </div>
       )}
 
@@ -280,16 +498,15 @@ const ProjectsPage = () => {
               htmlFor="projectName"
               className="block text-sm font-medium text-gray-700"
             >
-              Project Name
+              Project Name <span className="text-red-500">*</span>
             </label>
             <input
               type="text"
-              name="projectName"
               id="projectName"
               value={newProjectName}
               onChange={(e) => setNewProjectName(e.target.value)}
               required
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white text-gray-900"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             />
           </div>
           <div>
@@ -297,74 +514,150 @@ const ProjectsPage = () => {
               htmlFor="projectEmail"
               className="block text-sm font-medium text-gray-700"
             >
-              Client/Project Email (Optional)
+              Client Email (Optional)
             </label>
             <input
               type="email"
-              name="projectEmail"
               id="projectEmail"
               value={newProjectEmail}
               onChange={(e) => setNewProjectEmail(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white text-gray-900"
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
             />
           </div>
-          <div className="flex items-start space-x-4">
-            <div className="flex items-center h-5">
-              <input
-                id="sendEmail"
-                name="sendEmail"
-                type="checkbox"
-                checked={newProjectSendEmail}
-                onChange={(e) => setNewProjectSendEmail(e.target.checked)}
-                className="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded"
-              />
-            </div>
-            <div className="text-sm">
-              <label htmlFor="sendEmail" className="font-medium text-gray-700">
-                Send Email Notifications
-              </label>
-              <p className="text-gray-500">
-                Enable email updates for this project.
-              </p>
-            </div>
+          <div className="flex items-center">
+            <input
+              id="sendEmail"
+              type="checkbox"
+              checked={newProjectSendEmail}
+              onChange={(e) => setNewProjectSendEmail(e.target.checked)}
+              className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+            />
+            <label
+              htmlFor="sendEmail"
+              className="ml-2 block text-sm text-gray-900"
+            >
+              Send Email Notifications
+            </label>
           </div>
-          <div className="flex items-start space-x-4">
-            <div className="flex items-center h-5">
-              <input
-                id="archived"
-                name="archived"
-                type="checkbox"
-                checked={newProjectArchived}
-                onChange={(e) => setNewProjectArchived(e.target.checked)}
-                className="focus:ring-indigo-500 h-4 w-4 text-indigo-600 border-gray-300 rounded"
-              />
-            </div>
-            <div className="text-sm">
-              <label htmlFor="archived" className="font-medium text-gray-700">
-                Archive Project
-              </label>
-              <p className="text-gray-500">
-                Mark this project as archived (inactive).
-              </p>
-            </div>
+          <div className="flex items-center">
+            <input
+              id="archived"
+              type="checkbox"
+              checked={newProjectArchived}
+              onChange={(e) => setNewProjectArchived(e.target.checked)}
+              className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+            />
+            <label
+              htmlFor="archived"
+              className="ml-2 block text-sm text-gray-900"
+            >
+              Archive this project
+            </label>
           </div>
           <div className="flex justify-end space-x-3 pt-2">
             <button
               type="button"
               onClick={closeModal}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition duration-150"
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-[#002F41] hover:bg-[#004057] rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#002F41] transition duration-150"
+              className="px-4 py-2 text-sm font-medium text-white bg-[#002F41] border border-transparent rounded-md shadow-sm hover:bg-[#004057] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#00283a]"
             >
               Create Project
             </button>
           </div>
         </form>
       </Modal>
+
+      {editingProject && (
+        <Modal
+          isOpen={isEditModalOpen}
+          onClose={closeEditModal}
+          title={`Edit Project: ${editingProject.name}`}
+        >
+          <form onSubmit={handleUpdateProject} className="space-y-4">
+            <div>
+              <label
+                htmlFor="editProjectName"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Project Name <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                id="editProjectName"
+                value={editProjectName}
+                onChange={(e) => setEditProjectName(e.target.value)}
+                required
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="editProjectEmail"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Client Email (Optional)
+              </label>
+              <input
+                type="email"
+                id="editProjectEmail"
+                value={editProjectEmail}
+                onChange={(e) => setEditProjectEmail(e.target.value)}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              />
+            </div>
+            <div className="flex items-center">
+              <input
+                id="editSendEmail"
+                type="checkbox"
+                checked={editProjectSendEmail}
+                onChange={(e) => setEditProjectSendEmail(e.target.checked)}
+                className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+              />
+              <label
+                htmlFor="editSendEmail"
+                className="ml-2 block text-sm text-gray-900"
+              >
+                Send Email Notifications
+              </label>
+            </div>
+            <div className="flex items-center">
+              <input
+                id="editArchived"
+                type="checkbox"
+                checked={editProjectArchived}
+                onChange={(e) => setEditProjectArchived(e.target.checked)}
+                className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+              />
+              <label
+                htmlFor="editArchived"
+                className="ml-2 block text-sm text-gray-900"
+              >
+                Archive this project
+              </label>
+            </div>
+            <div className="flex justify-end space-x-3 pt-2">
+              <button
+                type="button"
+                onClick={closeEditModal}
+                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              >
+                Cancel
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 text-sm font-medium text-white bg-[#002F41] border border-transparent rounded-md shadow-sm hover:bg-[#004057] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#00283a]"
+              >
+                Save Changes
+              </button>
+            </div>
+          </form>
+        </Modal>
+      )}
     </div>
   );
 };

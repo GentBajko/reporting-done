@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import List, Optional
 
 from fastapi import (
     Form,
@@ -15,11 +15,10 @@ from backend.models import (
     ProjectCreateModel,
     ProjectResponseModel,
 )
-from backend.utils.filters_and_sort import get_filters, get_sorting
-from core.models.project import Project
 from database.models import project_mapper  # noqa F401
 from core.models.task import Task
 from core.models.user import User
+from core.models.project import Project
 from backend.dependencies import get_session
 from backend.utils.templates import templates
 from backend.utils.pagination import calculate_pagination
@@ -42,6 +41,7 @@ from backend.views.project_view import (
     remove_user_from_project,
 )
 from database.interfaces.session import ISession
+from backend.utils.filters_and_sort import get_filters, get_sorting
 
 project_router = APIRouter(prefix="/project")
 
@@ -61,23 +61,23 @@ def create_project_page(
 async def create_project_endpoint(
     request: Request,
     name: str = Form(...),
-    email: str = Form(...),
-    send_email: bool = Form(...),
+    email: str = Form(""),
+    send_email: bool = Form(False),
+    archived: bool = Form(False),
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
     csrf_protect=Depends(validate_csrf),
 ):
     if not is_admin(current_user):
         raise HTTPException(status_code=403, detail="Access forbidden")
-    project = ProjectCreateModel(
+    project_data = ProjectCreateModel(
         name=name,
         email=email,
         send_email=send_email,
+        archived=archived,
     )
-    project = create_project(project, session)
-    return templates.TemplateResponse(
-        "project/detail.html", {"request": request, "project": project}
-    )
+    created_project_model = create_project(project_data, session)
+    return created_project_model
 
 
 @project_router.get("/options", response_class=HTMLResponse)
@@ -129,7 +129,7 @@ def get_project_endpoint(
 
 @project_router.get("/{project_id}/edit", response_model=ProjectResponseModel)
 def update_project_page(
-    Request: Request,
+    request: Request,
     project_id: str,
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -143,11 +143,11 @@ def update_project_page(
         raise HTTPException(status_code=404, detail="Project not found")
 
     return templates.TemplateResponse(
-        "project/edit.html", {"project": project, "request": Request}
+        "project/edit.html", {"project": project, "request": request}
     )
 
 
-@project_router.put("/{project_id}", response_class=HTMLResponse)
+@project_router.put("/{project_id}", response_model=ProjectResponseModel)
 async def update_project_endpoint(
     request: Request,
     project_id: str,
@@ -166,10 +166,44 @@ async def update_project_endpoint(
         name=name, send_email=send_email, archived=archived, email=email
     )
 
-    update_project(project_id, project_update, session)
+    updated_project_model = update_project(project_id, project_update, session)
 
-    headers = {"HX-Redirect": f"/project/{project_id}"}
-    return Response(status_code=200, headers=headers)
+    return updated_project_model
+
+
+@project_router.delete("/{project_id}", status_code=204)
+async def delete_project_endpoint(
+    project_id: str,
+    session: ISession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    # csrf_protect = Depends(validate_csrf) # If using form/session for CSRF with JS calls
+):
+    if not is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Access forbidden")
+
+    with session as s:
+        repo = Repository(s, Project)
+        project_to_delete = repo.get(id=project_id)
+
+        if not project_to_delete:
+            raise HTTPException(status_code=404, detail="Project not found")
+
+        # TODO: Consider implications for associated tasks.
+        # - Option 1: Prevent deletion if tasks exist.
+        # - Option 2: Delete associated tasks (cascade - needs careful thought on logs etc).
+        # - Option 3: Disassociate tasks (set project_id to null - if schema allows).
+        # For now, attempting direct deletion. This might fail if DB has FK constraints.
+
+        # Example check (can be expanded):
+        # task_repo = Repository(s, Task)
+        # existing_tasks = task_repo.query(project_id=project_id, limit=1)
+        # if existing_tasks:
+        #     raise HTTPException(status_code=400, detail="Cannot delete project with associated tasks. Please reassign or delete tasks first.")
+
+        repo.delete(project_to_delete)
+        s.commit()
+
+    return Response(status_code=204)
 
 
 @project_router.post("/upsert", response_model=ProjectResponseModel)
@@ -179,30 +213,24 @@ def upsert_project_endpoint(
     return upsert_project(project, session)
 
 
-@project_router.get("/", response_class=HTMLResponse)
+@project_router.get("/", response_model=List[ProjectResponseModel])
 def get_all_projects_endpoint(
     request: Request,
-    page: int = 1,
-    sort: Optional[str] = "Name",
-    order: Optional[str] = "desc",
-    limit: int = 15,
-    combined_filters: Optional[str] = Query(None),
+    page: int = Query(1, alias="page"),
+    sort: Optional[str] = Query("Name", alias="sort"),
+    order: Optional[str] = Query("desc", alias="order"),
+    limit: int = Query(15, alias="limit"),
+    combined_filters: Optional[str] = Query(None, alias="filters"),
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
 ):
-    """
-    Endpoint to retrieve all projects with pagination.
-
-    - If the current user is an admin, retrieves all projects.
-    - Otherwise, retrieves projects associated with the current user.
-    """
     filter_mapping = {
         "Name": "name",
         "Email": "email",
         "Send Email": "send_email",
         "Archived": "archived",
     }
-    
+
     sort_mapping = {
         "Name": Project.name,
         "Email": Project.email,
@@ -211,44 +239,22 @@ def get_all_projects_endpoint(
     }
 
     order_by = get_sorting(sort, order, sort_mapping)
-    pagination = Pagination(limit=limit, current_page=page, order_by=order_by)
+    actual_limit = limit if limit <= 100 else 100
+
+    pagination = Pagination(
+        limit=actual_limit, current_page=page, order_by=order_by
+    )
 
     filters = get_filters(combined_filters, filter_mapping, "Name")
 
     if is_admin(current_user):
-        projects, pagination = get_all_projects(session, pagination, **filters)
+        projects, _ = get_all_projects(session, pagination, **filters)
     else:
-        projects, pagination = get_users_projects(
+        projects, _ = get_users_projects(
             current_user.id, session, pagination, **filters
         )
 
-    table_headers = [
-        "Name",
-        "Email",
-        "Send Email",
-        "Archived",
-        "Developers",
-        "Tasks",
-    ]
-
-    return templates.TemplateResponse(
-        "project/projects.html",
-        {
-            "request": request,
-            "headers": table_headers,
-            "data": projects,
-            "pagination": pagination,
-            "entity": "project",
-            "current_sort": sort,
-            "current_order": order,
-            "allowed_filter_fields": [
-                "Name",
-                "Email",
-                "Send Email",
-                "Archived",
-            ],
-        },
-    )
+    return projects
 
 
 @project_router.get("/{project_id}/assign", response_class=HTMLResponse)

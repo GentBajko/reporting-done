@@ -1,3 +1,4 @@
+import React, { useEffect, useState } from "react"; // Added useEffect and useState
 import {
   HiOutlineArrowCircleRight,
   HiOutlineBriefcase,
@@ -11,7 +12,16 @@ import {
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext"; // To get user's name
 
+// Interface for the API response
+interface DashboardSummaryData {
+  active_projects_count: number;
+  pending_tasks_count: number;
+  recent_logs_count: number;
+  is_admin_user: boolean;
+}
+
 // Simplified interfaces for summary data - in a real app, this might come from a context/store or API calls
+// These are no longer primary data sources but can be kept if other parts rely on their structure (though unlikely for this page now)
 interface SummaryProject {
   id: string;
   name: string;
@@ -29,24 +39,24 @@ interface SummaryLog {
   timestamp: number;
 }
 
-// Mock data for summaries - ideally, this would be derived from the actual data sources
-const mockSummaryProjects: SummaryProject[] = [
-  { id: "p1", name: "Active Project 1", archived: false },
-  { id: "p2", name: "Archived Project", archived: true },
-  { id: "p3", name: "Active Project 2", archived: false },
-];
+// Mock data for summaries - will be replaced by API data
+// const mockSummaryProjects: SummaryProject[] = [
+//   { id: "p1", name: "Active Project 1", archived: false },
+//   { id: "p2", name: "Archived Project", archived: true },
+//   { id: "p3", name: "Active Project 2", archived: false },
+// ];
 
-const mockSummaryTasks: SummaryTask[] = [
-  { id: "t1", title: "Pending Task 1", status: "In Progress" },
-  { id: "t2", title: "Completed Task", status: "Done" },
-  { id: "t3", title: "Pending Task 2", status: "To Do" },
-  { id: "t4", title: "Another Pending Task", status: "Returned" },
-];
+// const mockSummaryTasks: SummaryTask[] = [
+//   { id: "t1", title: "Pending Task 1", status: "In Progress" },
+//   { id: "t2", title: "Completed Task", status: "Done" },
+//   { id: "t3", title: "Pending Task 2", status: "To Do" },
+//   { id: "t4", title: "Another Pending Task", status: "Returned" },
+// ];
 
-const mockSummaryLogs: SummaryLog[] = [
-  { id: "l1", timestamp: Date.now() / 1000 - 3600 }, // 1 hour ago
-  { id: "l2", timestamp: Date.now() / 1000 - 7200 }, // 2 hours ago
-];
+// const mockSummaryLogs: SummaryLog[] = [
+//   { id: "l1", timestamp: Date.now() / 1000 - 3600 }, // 1 hour ago
+//   { id: "l2", timestamp: Date.now() / 1000 - 7200 }, // 2 hours ago
+// ];
 
 const StatCard = ({
   title,
@@ -54,12 +64,14 @@ const StatCard = ({
   icon: Icon,
   bgColor = "bg-blue-500",
   linkTo,
+  isLoading = false, // Added isLoading prop
 }: {
   title: string;
   value: string | number;
   icon: React.ElementType;
   bgColor?: string;
   linkTo?: string;
+  isLoading?: boolean; // Added isLoading prop
 }) => {
   const content = (
     <div
@@ -69,7 +81,11 @@ const StatCard = ({
         <h3 className="text-lg font-semibold">{title}</h3>
         <Icon className="h-8 w-8 opacity-80" />
       </div>
-      <p className="text-4xl font-bold mb-2">{value}</p>
+      {isLoading ? (
+        <div className="text-4xl font-bold mb-2 h-10 bg-white/30 animate-pulse rounded"></div>
+      ) : (
+        <p className="text-4xl font-bold mb-2">{value}</p>
+      )}
       {linkTo && (
         <div className="text-sm opacity-90 hover:opacity-100">
           View More &rarr;
@@ -129,14 +145,56 @@ const QuickLinkButton = ({
 
 const HomePage = () => {
   const { user } = useAuth(); // Get user info for welcome message
+  const [summaryData, setSummaryData] = useState<DashboardSummaryData | null>(
+    null
+  );
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const activeProjectsCount = mockSummaryProjects.filter(
-    (p) => !p.archived
-  ).length;
-  const pendingTasksCount = mockSummaryTasks.filter(
-    (t) => t.status && !["done", "completed"].includes(t.status.toLowerCase())
-  ).length;
-  const recentLogsCount = mockSummaryLogs.length; // Or filter by recent timestamp
+  useEffect(() => {
+    const fetchSummaryData = async () => {
+      setIsLoading(true);
+      setError(null);
+      try {
+        const response = await fetch("/api/dashboard/summary");
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data: DashboardSummaryData = await response.json();
+        setSummaryData(data);
+      } catch (e: any) {
+        console.error("Failed to fetch dashboard summary:", e);
+        setError(e.message || "Failed to load data");
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchSummaryData();
+  }, []);
+
+  // const activeProjectsCount = mockSummaryProjects.filter(
+  //   (p) => !p.archived
+  // ).length;
+  // const pendingTasksCount = mockSummaryTasks.filter(
+  //   (t) => t.status && !["done", "completed"].includes(t.status.toLowerCase())
+  // ).length;
+  // const recentLogsCount = mockSummaryLogs.length; // Or filter by recent timestamp
+
+  if (error) {
+    return (
+      <div className="p-6 bg-red-100 border border-red-400 text-red-700 rounded-lg shadow-md">
+        <h2 className="text-xl font-semibold mb-2">Error Loading Dashboard</h2>
+        <p>{error}</p>
+        <button
+          onClick={() => window.location.reload()}
+          className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition"
+        >
+          Try Again
+        </button>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -154,24 +212,27 @@ const HomePage = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <StatCard
           title="Active Projects"
-          value={activeProjectsCount}
+          value={summaryData?.active_projects_count ?? 0}
           icon={HiOutlineBriefcase}
           bgColor="bg-sky-600 hover:bg-sky-700"
           linkTo="/project"
+          isLoading={isLoading}
         />
         <StatCard
           title="Pending Tasks"
-          value={pendingTasksCount}
+          value={summaryData?.pending_tasks_count ?? 0}
           icon={HiOutlineClipboardList}
           bgColor="bg-amber-500 hover:bg-amber-600"
           linkTo="/task"
+          isLoading={isLoading}
         />
         <StatCard
           title="Recent Logs"
-          value={recentLogsCount}
+          value={summaryData?.recent_logs_count ?? 0}
           icon={HiOutlineDocumentText}
           bgColor="bg-teal-500 hover:bg-teal-600"
           linkTo="/log"
+          isLoading={isLoading}
         />
       </div>
 
@@ -182,26 +243,32 @@ const HomePage = () => {
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <QuickLinkButton
-            to="/project/new"
+            to="/project/new" // Assuming /project/new is the route to create a project
             icon={HiPlus}
             label="Create New Project"
           />
           <QuickLinkButton
-            to="/task/new"
+            to="/task/new" // Assuming /task/new is the route to create a task
             icon={HiPlus}
             label="Create New Task"
           />
-          <QuickLinkButton to="/log/new" icon={HiPlus} label="Create New Log" />
+          <QuickLinkButton
+            to="/log/new" // Assuming /log/new is the route to create a log
+            icon={HiPlus}
+            label="Create New Log"
+          />
           <QuickLinkButton
             to="/calendar"
             icon={HiOutlineCalendar}
             label="View Calendar"
           />
-          <QuickLinkButton
-            to="/user"
-            icon={HiOutlineUsers}
-            label="Manage Users"
-          />
+          {summaryData?.is_admin_user && (
+            <QuickLinkButton
+              to="/user"
+              icon={HiOutlineUsers}
+              label="Manage Users"
+            />
+          )}
           <QuickLinkButton
             to="https://division5.co"
             icon={HiOutlineArrowCircleRight}
