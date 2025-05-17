@@ -236,7 +236,7 @@ const HomePage = () => {
             />
           )}
           <QuickLinkButton
-            to="https://businessdone.co"
+            to="https://businessdone.tech"
             icon={HiOutlineArrowCircleRight}
             label="BusinessDone Website"
             external
