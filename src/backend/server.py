@@ -51,7 +51,7 @@ async def lifespan(app: FastAPI):
     yield
 
 
-app = FastAPI(title="Division5 Reports API", version="0.1.0")
+app = FastAPI(title="Reports Done API", version="0.1.0")
 
 
 class LogRequestMiddleware(BaseHTTPMiddleware):

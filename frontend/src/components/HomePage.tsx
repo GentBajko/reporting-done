@@ -236,9 +236,9 @@ const HomePage = () => {
             />
           )}
           <QuickLinkButton
-            to="https://division5.co"
+            to="https://businessdone.co"
             icon={HiOutlineArrowCircleRight}
-            label="Division5 Website"
+            label="BusinessDone Website"
             external
           />
         </div>

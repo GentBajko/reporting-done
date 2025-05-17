@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{% block title %}D5 Reports{% endblock %}</title>
+    <title>{% block title %}Reports Done{% endblock %}</title>
 </head>
 
 <body style="background-color: #f3f4f6; margin: 0; padding: 20px; font-family: Arial, sans-serif;">
@@ -20,7 +20,7 @@
             justify-content: center; 
             align-items: center;
         ">
-            <img src="https://division5.co/wp-content/uploads/2023/01/division5.svg" alt="Division5 Reports"
+            <img src="{{ VITE_APP_LOGO_URL | default('https://businessdone.co/logo.svg') }}" alt="Reports Done"
                 style="height: 40px;">
         </div>
 
@@ -36,7 +36,7 @@
             font-size: 12px; 
             color: #6b7280;
         ">
-            <p>This is an automated message from Division 5 Reports System</p>
+            <p>This is an automated message from Reports Done System</p>
         </div>
     </div>
 </body>

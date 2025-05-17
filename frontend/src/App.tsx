@@ -34,6 +34,9 @@ import UserProfilePage from "./components/UserProfilePage";
 import UsersPage from "./components/UsersPage";
 import { useAuth } from "./contexts/AuthContext";
 
+const VITE_APP_LOGO_URL =
+  import.meta.env.VITE_APP_LOGO_URL || "https://businessdone.co/logo.svg"; // Default if not set
+
 const LoginPage = () => {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -59,11 +62,11 @@ const LoginPage = () => {
   return (
     <div className="flex flex-col items-center justify-center h-screen w-screen bg-gray-200">
       <img
-        src="https://division5.co/wp-content/uploads/2023/01/division5.svg"
-        alt="Division5 Reports Logo"
+        src={VITE_APP_LOGO_URL}
+        alt="Reports Done Logo"
         className="h-12 mb-8"
       />
-      <h1 className="text-3xl mb-6 text-gray-800">D5 Reports Login</h1>
+      <h1 className="text-3xl mb-6 text-gray-800">Reports Done Login</h1>
       <form
         onSubmit={handleLogin}
         className="w-full max-w-xs space-y-4 bg-white p-8 rounded-lg shadow-md"
@@ -225,8 +228,8 @@ const Layout = () => {
         <div className="p-4 border-b border-gray-700">
           <Link to="/" className="flex items-center">
             <img
-              src="https://division5.co/wp-content/uploads/2023/01/division5.svg"
-              alt="Division5 Reports"
+              src={VITE_APP_LOGO_URL}
+              alt="Reports Done"
               className="h-auto"
             />
           </Link>
