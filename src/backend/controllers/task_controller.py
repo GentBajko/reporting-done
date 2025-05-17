@@ -4,7 +4,7 @@ from typing import List, Optional
 from datetime import datetime
 
 from loguru import logger
-from fastapi import Form, Query, Depends, Request, APIRouter, HTTPException
+from fastapi import Form, Query, Depends, Request, APIRouter, HTTPException, Response
 from fastapi.responses import HTMLResponse, StreamingResponse
 
 from backend.models import TaskCreateModel, TaskResponseModel
@@ -31,6 +31,7 @@ from backend.dependencies.auth import (
 from backend.models.pagination import Pagination
 from database.interfaces.session import ISession
 from backend.utils.filters_and_sort import get_filters, get_sorting
+from database.repositories.repository import Repository
 
 task_router = APIRouter(prefix="/task")
 

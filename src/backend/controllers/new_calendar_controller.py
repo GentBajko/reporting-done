@@ -1,4 +1,5 @@
 from fastapi import Query, Depends, APIRouter, HTTPException
+from loguru import logger
 
 from core.models.user import User
 from backend.dependencies import get_session
@@ -38,6 +39,7 @@ def get_user_calendar_endpoint(
     except ValueError as e:
         raise HTTPException(status_code=404, detail=str(e))
     except Exception as e:
+        logger.error(f"Error fetching calendar data: {e}")
         raise HTTPException(
             status_code=500,
             detail="An unexpected error occurred while fetching calendar data.",

@@ -7,9 +7,8 @@ import {
 } from "react-icons/hi";
 import { useAuth } from "../contexts/AuthContext";
 
-// Mock current user role - replace with actual auth context or prop
-const USER_ROLE: "admin" | "user" = "admin"; // or "user"
-const CURRENT_USER_ID: string = "usr-self"; // Replace with actual user ID from auth
+const USER_ROLE: "admin" | "user" = "admin";
+const CURRENT_USER_ID: string = "usr-self";
 
 const daysOfWeekHeaders = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -26,38 +25,33 @@ const AvailabilityPage = () => {
   const [usersForSelector, setUsersForSelector] = useState<
     { id: string; full_name: string }[]
   >([]);
-  const [currentDate, setCurrentDate] = useState(new Date()); // For month navigation
-  const [officeDays, setOfficeDays] = useState<Set<string>>(new Set()); // Stores "YYYY-MM-DD" strings
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [officeDays, setOfficeDays] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const minOfficeDaysPerWeek = 2;
 
-  // Fetch users for admin selector
   useEffect(() => {
     if (isAdmin) {
       const fetchUsers = async () => {
         try {
-          // Assuming an endpoint like /api/users/options or similar exists or will be created
-          // For now, using /user/ and expecting it to return List[UserResponseModel]
-          // This needs to be coordinated with user_controller.py modifications
           const response = await fetch("/user/", {
             headers: { Accept: "application/json" },
           });
           if (!response.ok)
             throw new Error("Failed to fetch users for selector");
-          const data = await response.json(); // Expects List[UserResponseModel] or similar
+          const data = await response.json();
           setUsersForSelector(
             data.map((u: any) => ({
               id: u.id,
               full_name: u.full_name || u.username || u.email,
             }))
           );
-          if (user?.id) setSelectedUserId(user.id); // Default to current admin's view first
+          if (user?.id) setSelectedUserId(user.id);
         } catch (err: any) {
           console.error("Error fetching users for selector:", err);
-          // setError("Could not load users list"); // Optionally show error
         }
       };
       fetchUsers();
@@ -66,7 +60,6 @@ const AvailabilityPage = () => {
     }
   }, [isAdmin, user?.id]);
 
-  // Fetch availability for the selected user and current month
   useEffect(() => {
     if (!selectedUserId) return;
 
@@ -75,7 +68,7 @@ const AvailabilityPage = () => {
       setError(null);
       try {
         const year = currentDate.getFullYear();
-        const month = currentDate.getMonth() + 1; // API expects 1-indexed month
+        const month = currentDate.getMonth() + 1;
         const response = await fetch(
           `/calendar/${selectedUserId}?year=${year}&month=${month}`
         );
@@ -89,8 +82,6 @@ const AvailabilityPage = () => {
             throw new Error(`HTTP error! Status: ${response.status}`);
           }
         } else {
-          // Backend returns UserCalendarResponseModel which has an 'availability' array
-          // Each item in 'availability' is DailyAvailabilityResponseModel: { date: str, status: str, ... }
           const data = await response.json();
           if (data && data.availability && Array.isArray(data.availability)) {
             const newOfficeDays = new Set<string>();
@@ -106,7 +97,6 @@ const AvailabilityPage = () => {
             );
             setOfficeDays(newOfficeDays);
           } else {
-            // Fallback or if data structure is unexpected from a 404 that still returned JSON
             setOfficeDays(new Set());
             console.warn(
               "Unexpected data structure from availability API or no availability data.",
@@ -123,7 +113,6 @@ const AvailabilityPage = () => {
     };
 
     fetchAvailability();
-    // Ensure selectedUserId is part of dependency array for re-fetch when admin changes user
   }, [selectedUserId, currentDate.getFullYear(), currentDate.getMonth()]);
 
   const handleDayClick = (dateKey: string) => {
@@ -145,15 +134,13 @@ const AvailabilityPage = () => {
     const lastDayOfMonth = new Date(year, month + 1, 0);
     const daysInMonth = [];
 
-    // Adjust start day to be Monday
-    let dayOfWeek = firstDayOfMonth.getDay(); // 0 (Sun) to 6 (Sat)
+    let dayOfWeek = firstDayOfMonth.getDay();
     let diff =
-      firstDayOfMonth.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1); // if Sunday (0), treat as 7th day for offset
+      firstDayOfMonth.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
 
     const startDate = new Date(firstDayOfMonth.setDate(diff));
 
     for (let i = 0; i < 42; i++) {
-      // Max 6 weeks * 7 days
       const day = new Date(startDate);
       day.setDate(startDate.getDate() + i);
       const dateKey = day.toISOString().split("T")[0];
@@ -184,13 +171,12 @@ const AvailabilityPage = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const numDaysInMonth = new Date(year, month + 1, 0).getDate();
-    const weeks: Record<number, number> = {}; // weekNumber: officeDayCount
+    const weeks: Record<number, number> = {};
 
     for (let day = 1; day <= numDaysInMonth; day++) {
       const d = new Date(year, month, day);
       const dateKey = d.toISOString().split("T")[0];
       if (officeDays.has(dateKey) && !(d.getDay() === 0 || d.getDay() === 6)) {
-        // Is an office day and not a weekend
         const weekNumber = Math.ceil(
           (d.getDate() + ((new Date(year, month, 1).getDay() + 6) % 7) - 1) / 7
         );
@@ -200,9 +186,7 @@ const AvailabilityPage = () => {
 
     const errors: string[] = [];
     for (const week in weeks) {
-      // Check only weeks that have at least one workday selected as office, or all weeks if none selected
       if (weeks[week] < minOfficeDaysPerWeek) {
-        // Check if the week has enough workdays to meet the minimum.
         let workdaysInWeek = 0;
         const firstDayOfWeek =
           (parseInt(week) - 1) * 7 +
@@ -216,18 +200,16 @@ const AvailabilityPage = () => {
           }
         }
         if (workdaysInWeek >= minOfficeDaysPerWeek) {
-          // Only error if the week actually has enough potential workdays
           errors.push(
             `Week ${week} has only ${weeks[week]} office day(s) selected. Minimum is ${minOfficeDaysPerWeek}.`
           );
         }
       }
     }
-    // If no office days are selected at all across the month, and there are weeks with sufficient workdays.
+
     if (officeDays.size === 0) {
       let hasPotentialWeek = false;
       for (let w = 1; w <= 5; w++) {
-        // Check up to 5 weeks
         let workdaysInPotentialWeek = 0;
         const firstDayOfWeek =
           (w - 1) * 7 + 1 - ((new Date(year, month, 1).getDay() + 6) % 7);
@@ -266,7 +248,7 @@ const AvailabilityPage = () => {
     setError(null);
 
     const year = currentDate.getFullYear();
-    const month = currentDate.getMonth() + 1; // API expects 1-indexed month
+    const month = currentDate.getMonth() + 1;
 
     const payload = {
       office_dates: Array.from(officeDays),
@@ -293,8 +275,7 @@ const AvailabilityPage = () => {
         );
       }
 
-      // const result = await response.json(); // Contains success message and counts
-      alert("Availability saved successfully!"); // Or use result.message
+      alert("Availability saved successfully!");
     } catch (err: any) {
       console.error("Error saving availability:", err);
       setError(err.message || "Could not save availability.");

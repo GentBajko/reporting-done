@@ -9,8 +9,6 @@ import {
 } from "react-icons/hi";
 import Modal from "./Modal";
 
-// Basic interfaces for related data - these would ideally be more detailed
-// and potentially imported from a shared types file aligned with backend models.
 interface BasicUser {
   id: string;
   full_name: string;
@@ -32,7 +30,6 @@ interface Project {
   tasks: BasicTask[];
 }
 
-// Corresponds to ProjectCreateModel
 interface NewProjectData {
   name: string;
   email: string | null;
@@ -40,7 +37,6 @@ interface NewProjectData {
   archived: boolean;
 }
 
-// Corresponds to ProjectCreateModel for both create and update
 interface ProjectFormData {
   name: string;
   email: string | null;
@@ -86,9 +82,9 @@ const mockProjectsData: Project[] = [
 
 const getStatusClass = (archived: boolean) => {
   if (archived) {
-    return "bg-gray-100 text-gray-800"; // Archived
+    return "bg-gray-100 text-gray-800";
   }
-  return "bg-green-100 text-green-800"; // Active
+  return "bg-green-100 text-green-800";
 };
 
 const ProjectsPage = () => {
@@ -99,13 +95,11 @@ const ProjectsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Form state for new project, aligned with NewProjectData
   const [newProjectName, setNewProjectName] = useState("");
-  const [newProjectEmail, setNewProjectEmail] = useState(""); // Store as string, convert to null if empty
+  const [newProjectEmail, setNewProjectEmail] = useState("");
   const [newProjectSendEmail, setNewProjectSendEmail] = useState(false);
   const [newProjectArchived, setNewProjectArchived] = useState(false);
 
-  // Form state for editing a project (similar to new project)
   const [editProjectName, setEditProjectName] = useState("");
   const [editProjectEmail, setEditProjectEmail] = useState("");
   const [editProjectSendEmail, setEditProjectSendEmail] = useState(false);
@@ -116,7 +110,6 @@ const ProjectsPage = () => {
       setIsLoading(true);
       setError(null);
       try {
-        // TODO: Add query parameters for pagination, sorting, filtering if UI supports it
         const response = await fetch("/project/");
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -166,26 +159,16 @@ const ProjectsPage = () => {
   ) => {
     event.preventDefault();
 
-    // const projectToCreate: NewProjectData = { // This interface is good for type safety before sending
-    //   name: newProjectName,
-    //   email: newProjectEmail === "" ? null : newProjectEmail,
-    //   send_email: newProjectSendEmail,
-    //   archived: newProjectArchived,
-    // };
-
-    // Use FormData for sending to a FastAPI Form(...) endpoint
     const formData = new FormData();
     formData.append("name", newProjectName);
-    formData.append("email", newProjectEmail); // FastAPI handles empty string to None for Optional[EmailStr] if model validator is set, or send_email form field handles it
-    formData.append("send_email", String(newProjectSendEmail)); // FormData sends bools as strings "true"/"false"
+    formData.append("email", newProjectEmail);
+    formData.append("send_email", String(newProjectSendEmail));
     formData.append("archived", String(newProjectArchived));
 
     try {
       const response = await fetch("/project/", {
         method: "POST",
         body: formData,
-        // Headers for FormData are set automatically by the browser, including Content-Type: multipart/form-data
-        // If backend expects JSON, then: body: JSON.stringify(projectToCreate), headers: {'Content-Type': 'application/json'}
       });
 
       if (!response.ok) {
@@ -199,14 +182,14 @@ const ProjectsPage = () => {
 
       const createdProject: Project = await response.json();
 
-      setProjects([createdProject, ...projects]); // Add to top for visibility
+      setProjects([createdProject, ...projects]);
       closeModal();
-      // Optional: add a success notification
+
       alert(`Project "${createdProject.name}" created successfully!`);
     } catch (e: any) {
       console.error("Failed to create project:", e);
       setError(e.message || "Failed to create project");
-      alert(`Error creating project: ${e.message}`); // Show error to user
+      alert(`Error creating project: ${e.message}`);
     }
   };
 
@@ -223,41 +206,28 @@ const ProjectsPage = () => {
       archived: editProjectArchived,
     };
 
-    // Backend PUT /project/{id} now expects JSON, but controller still has Form params
-    // For consistency with create (which used FormData) and to match the updated controller
-    // that still uses Form(...) parameters for PUT, we should send FormData.
-    // However, the controller was just changed to response_model=ProjectResponseModel.
-    // Let's assume the intention is to send JSON for PUT, matching typical REST APIs.
-    // If Form(...) is still used in PUT, this needs to be FormData.
-    // The controller's update_project_endpoint still has Form parameters.
-    // Let's stick to FormData to match the current backend PUT signature.
-
     const formData = new FormData();
     formData.append("name", editProjectName);
-    formData.append("email", editProjectEmail); // FastAPI handles empty string for Optional[EmailStr]
+    formData.append("email", editProjectEmail);
     formData.append("send_email", String(editProjectSendEmail));
     formData.append("archived", String(editProjectArchived));
-    // formData.append("csrftoken", "dummy_csrf_if_needed_and_not_handled_by_httpOnly_cookie"); // If CSRF is form based for PUT
 
     try {
       const response = await fetch(`/project/${editingProject.id}`, {
         method: "PUT",
-        body: formData, // Using FormData as controller still has Form() params
-        // headers: { 'Content-Type': 'application/json' }, // Not for FormData
+        body: formData,
       });
 
       if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({
-            detail: "Failed to update project. Unknown error.",
-          }));
+        const errorData = await response.json().catch(() => ({
+          detail: "Failed to update project. Unknown error.",
+        }));
         throw new Error(
           errorData.detail || `HTTP error! status: ${response.status}`
         );
       }
 
-      const updatedProject: Project = await response.json(); // Backend now returns JSON
+      const updatedProject: Project = await response.json();
 
       setProjects(
         projects.map((p) => (p.id === updatedProject.id ? updatedProject : p))
@@ -286,14 +256,13 @@ const ProjectsPage = () => {
     try {
       const response = await fetch(`/project/${projectId}`, {
         method: "DELETE",
-        // Add Authorization header if required
       });
 
       if (!response.ok) {
         if (response.status === 404) throw new Error("Project not found.");
         if (response.status === 403)
           throw new Error("Access forbidden to delete this project.");
-        // Add other specific error handling if backend provides more details
+
         const errorData = await response
           .json()
           .catch(() => ({ detail: "Cannot delete project" }));
@@ -301,7 +270,7 @@ const ProjectsPage = () => {
           errorData.detail || `HTTP error! status: ${response.status}`
         );
       }
-      // If DELETE is successful, status is 204 No Content, no JSON body
+
       setProjects(projects.filter((p) => p.id !== projectId));
       alert(`Project "${projectName}" deleted successfully.`);
     } catch (err: any) {
@@ -316,13 +285,12 @@ const ProjectsPage = () => {
   }
 
   if (error && projects.length === 0) {
-    // Only show full page error if no projects could be loaded initially
     return (
       <div className="p-6 bg-red-100 border border-red-400 text-red-700 rounded-lg shadow-md">
         <h2 className="text-xl font-semibold mb-2">Error Loading Projects</h2>
         <p>{error}</p>
         <button
-          onClick={() => window.location.reload()} // Or a specific fetch function call
+          onClick={() => window.location.reload()}
           className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition"
         >
           Try Again

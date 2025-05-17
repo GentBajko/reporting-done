@@ -18,7 +18,7 @@ const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
     >
       <div
         className="bg-white rounded-lg shadow-xl p-6 w-full max-w-md transform transition-all duration-300 ease-in-out scale-95 opacity-0 animate-modalShow"
-        onClick={(e) => e.stopPropagation()} // Prevent click inside modal from closing it
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-semibold text-gray-800">{title}</h3>
@@ -36,10 +36,6 @@ const Modal = ({ isOpen, onClose, title, children }: ModalProps) => {
 };
 
 export default Modal;
-
-// Add keyframes for modal animation in a global CSS file or here if using CSS-in-JS
-// For Tailwind, we can define it in tailwind.config.js or use a global style sheet.
-// Let's add a style tag here for simplicity for now, or it could go in index.css
 
 const styleSheet = document.createElement("style");
 styleSheet.type = "text/css";

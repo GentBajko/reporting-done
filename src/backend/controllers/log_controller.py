@@ -14,7 +14,7 @@ from fastapi import (
     APIRouter,
     HTTPException,
 )
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 
 from backend.models import LogCreateModel, LogResponseModel
 from core.models.log import Log
@@ -35,7 +35,6 @@ from backend.utils.templates import templates
 from backend.views.user_view import get_user_logs
 from backend.dependencies.auth import (
     is_admin,
-    validate_csrf,
     get_current_user,
 )
 from backend.models.pagination import Pagination

@@ -42,6 +42,7 @@ from backend.views.project_view import (
 )
 from database.interfaces.session import ISession
 from backend.utils.filters_and_sort import get_filters, get_sorting
+from database.repositories.repository import Repository
 
 project_router = APIRouter(prefix="/project")
 

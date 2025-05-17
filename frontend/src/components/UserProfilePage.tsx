@@ -1,30 +1,26 @@
 import React, { useEffect, useState } from "react";
 import { HiCheck, HiPencil, HiUserCircle, HiX } from "react-icons/hi";
-import { useAuth } from "../contexts/AuthContext"; // Assuming AuthContext provides current user info
+import { useAuth } from "../contexts/AuthContext";
 
-// Align with UserResponseModel from backend
 interface UserProfileData {
   id: string;
-  full_name: string; // Changed from fullName
+  full_name: string;
   email: string;
-  permissions: number; // Or a string role if backend provides it processed
-  // projects: any[]; // Example, if backend sends related data
-  // tasks: any[];   // Example
+  permissions: number;
 }
 
-// Align with UserProfileUpdateModel from backend for editing
 interface EditProfileFormData {
   full_name?: string;
   email?: string;
 }
 
 const UserProfilePage = () => {
-  const { user, isAdmin, token } = useAuth(); // Assuming useAuth provides current user info and token
+  const { user, isAdmin, token } = useAuth();
   const [profileData, setProfileData] = useState<UserProfileData | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState<EditProfileFormData>({});
   const [isLoading, setIsLoading] = useState(true);
-  const [isSaving, setIsSaving] = useState(false); // For save operation
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -68,14 +64,13 @@ const UserProfilePage = () => {
         email: profileData.email,
       });
     } else if (!isEditing) {
-      setEditFormData({}); // Clear edit form when not editing
+      setEditFormData({});
     }
   }, [profileData, isEditing]);
 
   const handleEditToggle = () => {
     setIsEditing(!isEditing);
     if (isEditing && profileData) {
-      // If was editing and now cancelling, reset form to profileData
       setEditFormData({
         full_name: profileData.full_name,
         email: profileData.email,
@@ -91,7 +86,6 @@ const UserProfilePage = () => {
   const handleSaveChanges = async () => {
     if (!profileData || !user?.id) return;
 
-    // Prepare only changed data
     const changedData: EditProfileFormData = {};
     if (
       editFormData.full_name !== undefined &&
@@ -107,7 +101,7 @@ const UserProfilePage = () => {
     }
 
     if (Object.keys(changedData).length === 0) {
-      setIsEditing(false); // No changes made
+      setIsEditing(false);
       return;
     }
 
@@ -139,17 +133,15 @@ const UserProfilePage = () => {
     } catch (err: any) {
       console.error("Error saving profile data:", err);
       setError(err.message || "Could not save profile data.");
-      // alert(`Error: ${err.message}`); // Error is shown in the UI
     } finally {
       setIsSaving(false);
     }
   };
 
-  // Determine role string from permissions for display
   const getRoleDisplay = (permissions: number | undefined): string => {
-    if (permissions === 1) return "Admin"; // Assuming 1 means Admin
-    if (permissions === 0) return "User"; // Assuming 0 means User
-    return "Unknown"; // Fallback
+    if (permissions === 1) return "Admin";
+    if (permissions === 0) return "User";
+    return "Unknown";
   };
 
   if (isLoading && !profileData && !error) {
@@ -165,7 +157,6 @@ const UserProfilePage = () => {
   }
 
   if (!profileData && !isLoading) {
-    // Check after loading is complete
     return (
       <div className="text-center p-10">
         User profile not found or user not logged in.
@@ -173,7 +164,6 @@ const UserProfilePage = () => {
     );
   }
 
-  // This case should ideally not be hit if logic above is correct, but as a safeguard:
   if (!profileData) return <div className="text-center p-10">Loading...</div>;
 
   return (
@@ -185,7 +175,7 @@ const UserProfilePage = () => {
             {isEditing ? (
               <input
                 type="text"
-                name="full_name" // Changed from fullName
+                name="full_name"
                 value={editFormData.full_name || ""}
                 onChange={handleInputChange}
                 className="text-3xl font-bold text-gray-800 mb-1 w-full border-b-2 border-indigo-500 focus:outline-none py-1"
@@ -212,13 +202,13 @@ const UserProfilePage = () => {
             <div className="mt-4 sm:mt-0 flex space-x-2">
               <button
                 onClick={handleSaveChanges}
-                disabled={isSaving} // Changed from isLoading
+                disabled={isSaving}
                 className="p-2 text-green-600 hover:text-green-700 rounded-md hover:bg-green-100 transition duration-150 flex items-center"
               >
                 <HiCheck className="mr-1 h-5 w-5" /> Save
               </button>
               <button
-                onClick={handleEditToggle} // Also acts as Cancel
+                onClick={handleEditToggle}
                 className="p-2 text-red-500 hover:text-red-700 rounded-md hover:bg-red-100 transition duration-150 flex items-center"
               >
                 <HiX className="mr-1 h-5 w-5" /> Cancel

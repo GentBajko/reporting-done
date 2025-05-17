@@ -6,18 +6,17 @@ import {
   useState,
 } from "react";
 
-// Define a basic user type, mirrors UserResponseModel loosely
 interface User {
   id: string;
   full_name: string;
   email: string;
-  permissions: number; // 0 for User, 1 for Admin (assumption)
+  permissions: number;
 }
 
 interface AuthContextType {
   isLoggedIn: boolean;
   isAdmin: boolean;
-  user: User | null; // Add user object to context
+  user: User | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   isLoadingAuth: boolean;
@@ -80,11 +79,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           throw new Error("Failed to fetch user details after login.");
         }
       } else {
-        const errorData = await response
-          .json()
-          .catch(() => ({
-            detail: "Login failed. Invalid credentials or server error.",
-          }));
+        const errorData = await response.json().catch(() => ({
+          detail: "Login failed. Invalid credentials or server error.",
+        }));
         throw new Error(errorData.detail || "Login failed");
       }
     } catch (error) {

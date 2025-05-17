@@ -7,18 +7,17 @@ import {
   HiOutlineTrash,
   HiPlus,
 } from "react-icons/hi";
-import Modal from "./Modal"; // Assuming Modal.tsx is in the same directory or adjust path
+import Modal from "./Modal";
 
-// Basic Log interface for Task.logs - align with LogCreateModel from backend
 interface BasicLog {
   id: string;
-  task_name: string; // Or should this be derived/omitted if it's part of Task?
+  task_name: string;
   description: string;
-  hours_spent_today: number; // float in backend
+  hours_spent_today: number;
   task_status: string;
   user_id: string;
   user_name: string;
-  timestamp: number; // int in backend (Unix timestamp)
+  timestamp: number;
   task_id: string;
 }
 
@@ -29,17 +28,16 @@ interface Task {
   user_id: string;
   user_name: string;
   title: string;
-  hours_required: number; // float in backend
-  hours_worked: number; // float in backend
+  hours_required: number;
+  hours_worked: number;
   returned: boolean;
   description: string;
   logs: BasicLog[];
-  status: string | null; // Optional[str] in backend
-  last_updated: number | null; // Optional[int] in backend (Unix timestamp)
-  timestamp: number; // int in backend (Unix timestamp)
+  status: string | null;
+  last_updated: number | null;
+  timestamp: number;
 }
 
-// Corresponds to TaskCreateModel
 interface NewTaskData {
   project_id: string;
   project_name: string;
@@ -48,10 +46,9 @@ interface NewTaskData {
   title: string;
   hours_required: number;
   description: string;
-  status?: string; // Optional: backend defaults if not provided
+  status?: string;
 }
 
-// For editing a task, similar to NewTaskData. project_id might be read-only.
 interface EditTaskData extends NewTaskData {}
 
 const mockTasksData: Task[] = [
@@ -68,8 +65,8 @@ const mockTasksData: Task[] = [
     description: "Create detailed mockups for the new homepage layout.",
     logs: [],
     status: "In Progress",
-    last_updated: Math.floor((Date.now() - 1000 * 60 * 60 * 24) / 1000), // 1 day ago
-    timestamp: Math.floor((Date.now() - 1000 * 60 * 60 * 48) / 1000), // 2 days ago
+    last_updated: Math.floor((Date.now() - 1000 * 60 * 60 * 24) / 1000),
+    timestamp: Math.floor((Date.now() - 1000 * 60 * 60 * 48) / 1000),
   },
   {
     id: "task-2",
@@ -85,7 +82,7 @@ const mockTasksData: Task[] = [
     logs: [],
     status: "To Do",
     last_updated: null,
-    timestamp: Math.floor((Date.now() - 1000 * 60 * 60 * 72) / 1000), // 3 days ago
+    timestamp: Math.floor((Date.now() - 1000 * 60 * 60 * 72) / 1000),
   },
   {
     id: "task-3",
@@ -100,26 +97,12 @@ const mockTasksData: Task[] = [
     description:
       "Conduct user testing sessions and gather feedback. Task was returned for revisions.",
     logs: [],
-    status: "Done", // Example, might be 'Returned' or similar if `returned` is true
+    status: "Done",
     last_updated: Math.floor(Date.now() / 1000),
-    timestamp: Math.floor((Date.now() - 1000 * 60 * 60 * 24 * 5) / 1000), // 5 days ago
+    timestamp: Math.floor((Date.now() - 1000 * 60 * 60 * 24 * 5) / 1000),
   },
 ];
 
-// const getPriorityClass = (priority: Task["priority"]) => {
-//   switch (priority) {
-//     case "High":
-//       return "text-red-600 font-semibold";
-//     case "Medium":
-//       return "text-yellow-600 font-semibold";
-//     case "Low":
-//       return "text-green-600 font-semibold";
-//     default:
-//       return "text-gray-600";
-//   }
-// };
-
-// Keeping previous getStatusClass for general status strings. Backend status is flexible.
 const getStatusClass = (status: string | null) => {
   if (!status) return "bg-gray-100 text-gray-700";
   switch (status.toLowerCase()) {
@@ -132,7 +115,7 @@ const getStatusClass = (status: string | null) => {
     case "returned":
       return "bg-yellow-200 text-yellow-800";
     default:
-      return "bg-purple-200 text-purple-800"; // For other custom statuses
+      return "bg-purple-200 text-purple-800";
   }
 };
 
@@ -144,7 +127,6 @@ const TasksPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Form state for new task
   const [newTaskTitle, setNewTaskTitle] = useState("");
   const [newTaskProjectId, setNewTaskProjectId] = useState("");
   const [newTaskUserId, setNewTaskUserId] = useState("");
@@ -154,7 +136,6 @@ const TasksPage = () => {
   const [newTaskDescription, setNewTaskDescription] = useState("");
   const [newTaskStatus, setNewTaskStatus] = useState<string>("To Do");
 
-  // Form state for editing a task
   const [editTaskTitle, setEditTaskTitle] = useState("");
   const [editTaskProjectId, setEditTaskProjectId] = useState("");
   const [editTaskUserId, setEditTaskUserId] = useState("");
@@ -169,7 +150,6 @@ const TasksPage = () => {
       setIsLoading(true);
       setError(null);
       try {
-        // TODO: Add query params for pagination, sorting, filtering
         const response = await fetch("/task/");
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
@@ -183,12 +163,8 @@ const TasksPage = () => {
         setIsLoading(false);
       }
     };
-    // const fetchProjectsForSelector = async () => { /* fetch /project/ */ };
-    // const fetchUsersForSelector = async () => { /* fetch /user/ (or a dedicated /api/users/options) */ };
 
     fetchTasks();
-    // fetchProjectsForSelector();
-    // fetchUsersForSelector();
   }, []);
 
   const openModal = () => setIsModalOpen(true);
@@ -232,21 +208,18 @@ const TasksPage = () => {
       return;
     }
     if (!newTaskProjectId) {
-      alert("Please select a project for the task."); // Basic validation
+      alert("Please select a project for the task.");
       return;
     }
-    // user_id can be optional if backend defaults to current user and only admin can assign
-    // if (!newTaskUserId && isAdmin) { alert("Please assign a user for the task."); return; }
 
     const formData = new FormData();
     formData.append("title", newTaskTitle);
     formData.append("project_id", newTaskProjectId);
-    // project_name is not sent, backend will derive it
+
     if (newTaskUserId) {
-      // Send user_id if provided (e.g., by admin)
       formData.append("user_id", newTaskUserId);
     }
-    // user_name is not sent, backend will derive it
+
     formData.append("hours_required", String(hoursRequired));
     formData.append("description", newTaskDescription);
     formData.append("status", newTaskStatus);
@@ -287,21 +260,14 @@ const TasksPage = () => {
       return;
     }
 
-    // Backend's PUT /task/{task_id} endpoint expects TaskCreateModel.
-    // TaskCreateModel includes: project_id, project_name, user_id, user_name, title, hours_required, description, status.
-    // The controller sets project_name and user_name to "" as view layer handles them.
-    // Frontend should send: project_id, title, hours_required, description.
-    // And optionally: user_id (if admin changes it), status.
-
     const taskUpdatePayload: Partial<EditTaskData> = {
-      project_id: editTaskProjectId, // Assuming project_id can be part of update, though often fixed
+      project_id: editTaskProjectId,
       title: editTaskTitle,
       hours_required: hoursRequired,
       description: editTaskDescription,
       status: editTaskStatus,
     };
     if (editTaskUserId) {
-      // Only include user_id if it's set (relevant for admin changes)
       taskUpdatePayload.user_id = editTaskUserId;
     }
 
@@ -346,7 +312,6 @@ const TasksPage = () => {
     try {
       const response = await fetch(`/task/${taskId}`, {
         method: "DELETE",
-        // Add Authorization header if required by admin-only deletion
       });
 
       if (!response.ok) {
@@ -379,7 +344,7 @@ const TasksPage = () => {
         <h2 className="text-xl font-semibold mb-2">Error Loading Tasks</h2>
         <p>{error}</p>
         <button
-          onClick={() => window.location.reload()} // Or specific fetch function
+          onClick={() => window.location.reload()}
           className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition"
         >
           Try Again
@@ -719,7 +684,6 @@ const TasksPage = () => {
                 value={editTaskProjectId}
                 onChange={(e) => setEditTaskProjectId(e.target.value)}
                 required
-                // readOnly // If project ID should not be changed after creation
                 className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
               />
             </div>

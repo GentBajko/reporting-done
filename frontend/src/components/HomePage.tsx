@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react"; // Added useEffect and useState
+import React, { useEffect, useState } from "react";
 import {
   HiOutlineArrowCircleRight,
   HiOutlineBriefcase,
@@ -10,9 +10,8 @@ import {
   HiPlus,
 } from "react-icons/hi";
 import { Link } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext"; // To get user's name
+import { useAuth } from "../contexts/AuthContext";
 
-// Interface for the API response
 interface DashboardSummaryData {
   active_projects_count: number;
   pending_tasks_count: number;
@@ -20,8 +19,6 @@ interface DashboardSummaryData {
   is_admin_user: boolean;
 }
 
-// Simplified interfaces for summary data - in a real app, this might come from a context/store or API calls
-// These are no longer primary data sources but can be kept if other parts rely on their structure (though unlikely for this page now)
 interface SummaryProject {
   id: string;
   name: string;
@@ -39,39 +36,20 @@ interface SummaryLog {
   timestamp: number;
 }
 
-// Mock data for summaries - will be replaced by API data
-// const mockSummaryProjects: SummaryProject[] = [
-//   { id: "p1", name: "Active Project 1", archived: false },
-//   { id: "p2", name: "Archived Project", archived: true },
-//   { id: "p3", name: "Active Project 2", archived: false },
-// ];
-
-// const mockSummaryTasks: SummaryTask[] = [
-//   { id: "t1", title: "Pending Task 1", status: "In Progress" },
-//   { id: "t2", title: "Completed Task", status: "Done" },
-//   { id: "t3", title: "Pending Task 2", status: "To Do" },
-//   { id: "t4", title: "Another Pending Task", status: "Returned" },
-// ];
-
-// const mockSummaryLogs: SummaryLog[] = [
-//   { id: "l1", timestamp: Date.now() / 1000 - 3600 }, // 1 hour ago
-//   { id: "l2", timestamp: Date.now() / 1000 - 7200 }, // 2 hours ago
-// ];
-
 const StatCard = ({
   title,
   value,
   icon: Icon,
   bgColor = "bg-blue-500",
   linkTo,
-  isLoading = false, // Added isLoading prop
+  isLoading = false,
 }: {
   title: string;
   value: string | number;
   icon: React.ElementType;
   bgColor?: string;
   linkTo?: string;
-  isLoading?: boolean; // Added isLoading prop
+  isLoading?: boolean;
 }) => {
   const content = (
     <div
@@ -144,7 +122,7 @@ const QuickLinkButton = ({
 };
 
 const HomePage = () => {
-  const { user } = useAuth(); // Get user info for welcome message
+  const { user } = useAuth();
   const [summaryData, setSummaryData] = useState<DashboardSummaryData | null>(
     null
   );
@@ -172,14 +150,6 @@ const HomePage = () => {
 
     fetchSummaryData();
   }, []);
-
-  // const activeProjectsCount = mockSummaryProjects.filter(
-  //   (p) => !p.archived
-  // ).length;
-  // const pendingTasksCount = mockSummaryTasks.filter(
-  //   (t) => t.status && !["done", "completed"].includes(t.status.toLowerCase())
-  // ).length;
-  // const recentLogsCount = mockSummaryLogs.length; // Or filter by recent timestamp
 
   if (error) {
     return (
@@ -243,20 +213,16 @@ const HomePage = () => {
         </h2>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           <QuickLinkButton
-            to="/project/new" // Assuming /project/new is the route to create a project
+            to="/project/new"
             icon={HiPlus}
             label="Create New Project"
           />
           <QuickLinkButton
-            to="/task/new" // Assuming /task/new is the route to create a task
+            to="/task/new"
             icon={HiPlus}
             label="Create New Task"
           />
-          <QuickLinkButton
-            to="/log/new" // Assuming /log/new is the route to create a log
-            icon={HiPlus}
-            label="Create New Log"
-          />
+          <QuickLinkButton to="/log/new" icon={HiPlus} label="Create New Log" />
           <QuickLinkButton
             to="/calendar"
             icon={HiOutlineCalendar}
