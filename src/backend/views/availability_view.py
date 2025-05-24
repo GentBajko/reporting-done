@@ -34,30 +34,11 @@ def get_user_availability_data(
     # Query OfficeAvailability records
     office_availability_repo = Repository(session, OfficeAvailability)
     availability_entries: List[OfficeAvailability] = (
-        office_availability_repo.query(
-            user_id=user_id,
-            # Assuming 'day' is the field name in OfficeAvailability for the date
-            # and the query method supports __gte and __lte for date fields.
-            # Based on controller, it should be `day__gte` and `day__lte` if using SQLAlchemy-like filters.
-            # For a generic Repository, it might be `day_gte` or a filter dict.
-            # Let's assume the repository can handle `day__gte` and `day__lte` or similar for date range.
-            # If using a simple dict like `day=value` in repo, this needs specific range query support.
-            # The controller used `day__gte`, so let's align if this repo supports it.
-            # For now, assuming a more direct attribute if not __gte style on generic repo.
-            # This needs to match the actual implementation of Repository.query()
-            # Reverting to a simpler filter for now if __gte isn't standard for this Repository.
-            # Let's assume the query can take a list of conditions or the controller's usage implies
-            # the Repository is more sophisticated.
-            # For now, will fetch all for user and filter in Python, though less efficient.
-            # A better way is to ensure Repository supports range queries on dates.
-            # Given controller uses `day__gte`, assume this repo supports it too.
-        )
-        .filter(
+        office_availability_repo.filter(
             OfficeAvailability.user_id == user_id,
             OfficeAvailability.day >= start_date,
             OfficeAvailability.day <= end_date,
-        )
-        .all()
+        ).all()
     )
 
     # Map dates to their 'present' status

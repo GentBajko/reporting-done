@@ -82,28 +82,29 @@ async def upload_xlsx(
         except ValueError:
             continue
         for full_name in names:
-            user_record = session.query(User, full_name=full_name)
+            user_record = (
+                Repository(session, User)
+                .filter(User.full_name == full_name)
+                .first()
+            )
             if user_record:
-                office_availability_record = (  # Renamed variable
-                    session.query(
-                        OfficeAvailability,
-                        day=day_date,
-                        user_id=user_record[0].id,  # Renamed model
-                    )  # noqa E501
+                office_availability_record = (
+                    Repository(session, OfficeAvailability)
+                    .filter(
+                        OfficeAvailability.day == day_date,
+                        OfficeAvailability.user_id == user_record.id,
+                    )
+                    .first()
                 )
                 if not office_availability_record:
-                    office_availability_record = (
-                        OfficeAvailability(  # Renamed model
-                            user_id=user_record[0].id,
-                            day=day_date,
-                            present=True,
-                        )
+                    office_availability_record = OfficeAvailability(
+                        user_id=user_record.id,
+                        day=day_date,
+                        present=True,
                     )
                     session.add(office_availability_record)
                 else:
-                    office_availability_record[
-                        0
-                    ].present = True  # Ensure this is a list if indexed
+                    office_availability_record.present = True
     session.commit()
 
     return RedirectResponse(
@@ -229,13 +230,12 @@ def get_user_availability(  # Renamed function
         used_year, used_month, calendar.monthrange(used_year, used_month)[1]
     )
 
-    user_office_availabilities: List[OfficeAvailability] = (
-        session.query(  # Renamed model and variable
-            OfficeAvailability,
-            user_id=user_id,
-            day__gte=first_day,
-            day__lte=last_day,  # Renamed model
-        )
+    user_office_availabilities: List[OfficeAvailability] = Repository(
+        session, OfficeAvailability
+    ).query(
+        OfficeAvailability.user_id == user_id,
+        OfficeAvailability.day >= first_day,
+        OfficeAvailability.day <= last_day,
     )
 
     # Filter for present days and format them
@@ -315,11 +315,12 @@ def post_user_availability(  # Renamed function
     )
 
     # Fetch existing availability for the user for the month
-    existing_availabilities: List[OfficeAvailability] = session.query(
-        OfficeAvailability,
-        user_id=user_id,
-        day__gte=first_day_of_month,
-        day__lte=last_day_of_month,
+    existing_availabilities: List[OfficeAvailability] = Repository(
+        session, OfficeAvailability
+    ).query(
+        OfficeAvailability.user_id == user_id,
+        OfficeAvailability.day >= first_day_of_month,
+        OfficeAvailability.day <= last_day_of_month,
     )
 
     existing_avail_map: Dict[date, OfficeAvailability] = {
@@ -409,9 +410,14 @@ async def update_user_availability_for_day_endpoint(
     # This mapping needs to be confirmed with frontend capabilities
     is_present = payload.status.lower() == "office"
 
-    availability_record = session.query(
-        OfficeAvailability, user_id=user_id, day=target_date
-    ).first()
+    availability_record = (
+        Repository(session, OfficeAvailability)
+        .filter(
+            OfficeAvailability.user_id == user_id,
+            OfficeAvailability.day == target_date,
+        )
+        .first()
+    )
 
     if availability_record:
         availability_record.present = is_present
@@ -478,11 +484,12 @@ async def update_user_availability_for_month_endpoint(  # Renamed function for c
     last_day_of_month = date(year, month, calendar.monthrange(year, month)[1])
 
     # Fetch existing availabilities for the month
-    existing_availabilities_list: List[OfficeAvailability] = session.query(
-        OfficeAvailability,
-        user_id=user_id,
-        day__gte=first_day_of_month,
-        day__lte=last_day_of_month,
+    existing_availabilities_list: List[OfficeAvailability] = Repository(
+        session, OfficeAvailability
+    ).query(
+        OfficeAvailability.user_id == user_id,
+        OfficeAvailability.day >= first_day_of_month,
+        OfficeAvailability.day <= last_day_of_month,
     )
     existing_avail_map: Dict[date, OfficeAvailability] = {
         avail.day: avail for avail in existing_availabilities_list
@@ -559,11 +566,12 @@ async def get_user_availability_detailed_endpoint(  # Renamed function
         used_year, used_month, calendar.monthrange(used_year, used_month)[1]
     )
 
-    user_availabilities: List[OfficeAvailability] = session.query(
-        OfficeAvailability,
-        user_id=user_id,
-        day__gte=first_day,
-        day__lte=last_day,
+    user_availabilities: List[OfficeAvailability] = Repository(
+        session, OfficeAvailability
+    ).query(
+        OfficeAvailability.user_id == user_id,
+        OfficeAvailability.day >= first_day,
+        OfficeAvailability.day <= last_day,
     )
 
     availability_map: Dict[str, bool] = {

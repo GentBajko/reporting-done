@@ -29,24 +29,31 @@ class Repository(Generic[T]):
 
     def query(
         self,
+        *expressions: Any,
         order_by: Optional[List[Any]] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         options: Optional[List[Any]] = None,
         in_: Optional[Dict[Any, List[Any]]] = None,
-        *args,
-        **filters,
+        **filters: Any,
     ) -> List[T]:
         return self.session.query(
             self.model,
+            *expressions,
             order_by=order_by,
             limit=limit,
             offset=offset,
             options=options,
             in_=in_,
-            *args,
             **filters,
         )
+
+    def filter(self, *expressions: Any):
+        """Return a SQLAlchemy query filtered by the given expressions."""
+        base_session = getattr(self.session, "_session", None)
+        if base_session is None:
+            raise AttributeError("Underlying session is not accessible")
+        return base_session.query(self.model).filter(*expressions)
 
     def count(self, **filters) -> int:
         return self.session.count(self.model, **filters)

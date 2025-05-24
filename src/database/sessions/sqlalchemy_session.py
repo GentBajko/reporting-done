@@ -36,14 +36,18 @@ class SQLAlchemySession(ISession):
     def query(
         self,
         model: Type[T],
+        *expressions: Any,
         order_by: Optional[List[Any]] = None,
         limit: Optional[int] = None,
         offset: Optional[int] = None,
         options: Optional[List[Any]] = None,
         in_: Optional[Dict[Any, List[Any]]] = None,
-        **filters,
+        **filters: Any,
     ) -> List[T]:
         query = self._session.query(model)
+
+        if expressions:
+            query = query.filter(*expressions)
 
         if in_:
             in_filters = [
