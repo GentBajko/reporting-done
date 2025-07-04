@@ -1,7 +1,6 @@
 from typing import List, Tuple, Optional
 
 from argon2 import PasswordHasher
-from pydantic import BaseModel
 from argon2.exceptions import VerifyMismatchError
 
 from backend.models import (

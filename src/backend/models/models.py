@@ -1,5 +1,5 @@
-from typing import List, Optional
-from datetime import datetime
+from typing import List, Optional, Dict
+from datetime import datetime, date
 
 from ulid import ULID
 from pydantic import Field, EmailStr, BaseModel, validator
@@ -110,6 +110,28 @@ class UserResponseModel(BaseModel):
 class UserLoginModel(BaseModel):
     email: str
     password: str
+
+
+class AvailabilityResponseModel(BaseModel):
+    id: str
+    user_id: str
+    day: date
+    present: bool
+
+
+class UserCalendarResponseModel(BaseModel):
+    user_id: str
+    month: int
+    year: int
+    office_days: Optional[List[date]] = None
+    total_office_days: Optional[int] = None
+    availability: Optional[Dict[str, bool]] = None  # Date string -> present status
+
+
+class DailyAvailabilityResponseModel(BaseModel):
+    date: date
+    users_in_office: List[UserResponseModel]
+    total_in_office: int
 
 
 UserResponseModel.model_rebuild()

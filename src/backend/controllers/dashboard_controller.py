@@ -7,11 +7,6 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from backend.views import log_view, task_view, project_view
 from core.models.user import User
 from backend.dependencies import get_session
-from backend.models.models import (
-    LogResponseModel,
-    TaskResponseModel,
-    ProjectResponseModel,
-)
 from core.enums.task_status import TaskStatus
 from backend.dependencies.auth import is_admin, get_current_user
 from backend.models.pagination import Pagination
@@ -66,11 +61,6 @@ async def get_dashboard_summary(
         active_projects_count = sum(1 for p in projects if not p.archived)
 
     pending_tasks_count = 0
-    pending_statuses = [
-        status.value
-        for status in TaskStatus
-        if status not in [TaskStatus.DONE, TaskStatus.COMPLETED]
-    ]
 
     if user_is_admin:
         tasks, _ = task_view.get_all_tasks(session, no_limit_pagination)
@@ -79,7 +69,7 @@ async def get_dashboard_summary(
             for t in tasks
             if t.status
             and t.status
-            not in [TaskStatus.DONE.value, TaskStatus.COMPLETED.value]
+            not in [TaskStatus.DONE.value, TaskStatus.CANCELLED.value]
         )
     else:
         tasks, _ = task_view.get_user_tasks(
@@ -90,7 +80,7 @@ async def get_dashboard_summary(
             for t in tasks
             if t.status
             and t.status
-            not in [TaskStatus.DONE.value, TaskStatus.COMPLETED.value]
+            not in [TaskStatus.DONE.value, TaskStatus.CANCELLED.value]
         )
 
     if user_is_admin:

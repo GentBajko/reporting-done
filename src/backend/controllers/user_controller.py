@@ -6,17 +6,9 @@ from fastapi.responses import Response, HTMLResponse, RedirectResponse
 
 from backend.models import (
     UserCreateModel,
-    LogResponseModel,
-    TaskResponseModel,
     UserResponseModel,
-    ProjectResponseModel,
 )
 from core.models.log import Log
-from database.models import (
-    user_mapper,
-    project_mapper,
-    availability_mapper,
-)
 from core.models.task import Task
 from core.models.user import User
 from core.models.project import Project
@@ -43,6 +35,7 @@ from backend.views.project_view import get_project
 from database.interfaces.session import ISession
 from backend.utils.filters_and_sort import get_filters, get_sorting
 from database.interfaces.repository import Repository
+from config.env import ENV
 
 user_router = APIRouter(prefix="/user")
 
@@ -94,11 +87,27 @@ def login_page(request: Request):
 @user_router.post("/login")
 async def login_user(
     request: Request,
-    email: str = Form(...),
-    password: str = Form(...),
+    email: str = Form(None),
+    password: str = Form(None),
     session: ISession = Depends(get_session),
     csrf_protect=Depends(validate_csrf),
 ):
+    # Auto-login in dev mode if no credentials provided
+    if ENV.ENV == "dev" and not email and not password:
+        # Get the first user from the database
+        with session as s:
+            repo = Repository(s, User)
+            first_user = repo.get_all(limit=1)
+            if first_user:
+                request.session["user_id"] = first_user[0].id
+                return RedirectResponse(url="/", status_code=302)
+            else:
+                raise HTTPException(status_code=400, detail="No users found for auto-login")
+    
+    # Normal authentication flow
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password are required")
+    
     authenticated_user = authenticate_user(email, password, session)
     if not authenticated_user:
         raise HTTPException(status_code=400, detail="Invalid credentials")

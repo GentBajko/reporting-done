@@ -1,8 +1,7 @@
 from typing import Set, Dict, List, Optional
 import calendar
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
-from loguru import logger
 from sqlalchemy.orm import joinedload
 
 from backend.models import (

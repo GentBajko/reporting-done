@@ -1,5 +1,5 @@
 import json
-from typing import Set, Dict, List, Union, Optional
+from typing import Set, Dict, List, Optional
 import calendar  # Standard library, keep as is
 from datetime import date, datetime, timedelta
 
@@ -16,21 +16,17 @@ from fastapi import (
 )
 from pydantic import Field, BaseModel
 from fastapi.responses import (  # HTMLResponse might not be needed if all templates are gone
-    HTMLResponse,
-    JSONResponse,
     RedirectResponse,
 )
 
 # backend.views.availability_view will be the new name
-from backend.views import availability_view
 from backend.models import (
     UserCalendarResponseModel,  # This might need to become UserAvailabilityResponseModel if it exists or is defined elsewhere
     DailyAvailabilityResponseModel,
 )
 from database.models import (
     user_mapper,  # noqa F401
-    availability_mapper,  # Renamed from calendar_mapper
-)
+    )
 from core.models.user import User
 from backend.dependencies import get_session
 from database.models.mapper import mapper_registry  # noqa F401
@@ -409,9 +405,10 @@ async def update_user_availability_for_day_endpoint(
     # This mapping needs to be confirmed with frontend capabilities
     is_present = payload.status.lower() == "office"
 
-    availability_record = session.query(
+    availability_records = session.query(
         OfficeAvailability, user_id=user_id, day=target_date
-    ).first()
+    )
+    availability_record = availability_records[0] if availability_records else None
 
     if availability_record:
         availability_record.present = is_present
@@ -423,13 +420,20 @@ async def update_user_availability_for_day_endpoint(
 
     session.commit()
 
+    # Get all users in office for this date
+    users_in_office_records = session.query(
+        OfficeAvailability, day=target_date, present=True
+    )
+    
+    user_ids_in_office = [record.user_id for record in users_in_office_records]
+    users_in_office = []
+    if user_ids_in_office:
+        users_in_office = session.query(User, id__in=user_ids_in_office)
+    
     return DailyAvailabilityResponseModel(
-        user_id=user_id,
-        date=target_date.isoformat(),
-        # The DailyAvailabilityResponseModel needs to be checked. What does it expect?
-        # Assuming it expects a 'status' string or a 'present' boolean.
-        # Let's assume it expects 'present' for now.
-        present=is_present,
+        date=target_date,
+        users_in_office=users_in_office,
+        total_in_office=len(users_in_office),
     )
 
 
