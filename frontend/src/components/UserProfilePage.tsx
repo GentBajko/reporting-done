@@ -33,9 +33,9 @@ const UserProfilePage = () => {
         try {
           const data = await request<UserProfileData>(`/user/${user.id}`);
           setProfileData(data);
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error("Error fetching profile data:", err);
-          setError(err.message || "Could not load profile data.");
+          setError(err instanceof Error ? err.message : "Could not load profile data.");
         } finally {
           setIsLoading(false);
         }
@@ -107,9 +107,9 @@ const UserProfilePage = () => {
       setProfileData(updatedProfile);
       setIsEditing(false);
       alert("Profile updated successfully!");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error saving profile data:", err);
-      setError(err.message || "Could not save profile data.");
+      setError(err instanceof Error ? err.message : "Could not save profile data.");
     } finally {
       setIsSaving(false);
     }

@@ -42,15 +42,15 @@ const AvailabilityPage = () => {
           if (!response.ok)
             throw new Error("Failed to fetch users for selector");
           const data = await response.json();
-          const users = data.items || (Array.isArray(data) ? data : []);
+          const users: Array<{ id: string; full_name?: string; username?: string; email?: string }> = data.items || (Array.isArray(data) ? data : []);
           setUsersForSelector(
-            users.map((u: any) => ({
+            users.map((u) => ({
               id: u.id,
-              full_name: u.full_name || u.username || u.email,
+              full_name: u.full_name || u.username || u.email || "",
             }))
           );
           if (user?.id) setSelectedUserId(user.id);
-        } catch (err: any) {
+        } catch (err: unknown) {
           console.error("Error fetching users for selector:", err);
         }
       };
@@ -104,9 +104,9 @@ const AvailabilityPage = () => {
             );
           }
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         console.error("Error fetching availability:", err);
-        setError(err.message || "Could not load availability data.");
+        setError(err instanceof Error ? err.message : "Could not load availability data.");
       } finally {
         setIsLoading(false);
       }
@@ -275,10 +275,11 @@ const AvailabilityPage = () => {
       }
 
       addToast("Availability saved successfully!", "success");
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error("Error saving availability:", err);
-      setError(err.message || "Could not save availability.");
-      addToast(err.message || "Could not save availability.", "error");
+      const message = err instanceof Error ? err.message : "Could not save availability.";
+      setError(message);
+      addToast(message, "error");
     } finally {
       setIsSaving(false);
     }

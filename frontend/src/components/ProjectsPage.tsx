@@ -13,7 +13,7 @@ import {
   HiX
 } from "react-icons/hi";
 import { useApi } from "../hooks/useApi";
-import type { Pagination, Project } from "../types";
+import type { PaginatedResponse, Pagination, Project } from "../types";
 import Modal from "./Modal";
 import DataTable from "./common/DataTable";
 import FloatingActionButton from "./common/FloatingActionButton";
@@ -68,7 +68,7 @@ const ProjectsPage = () => {
         queryParams.append("send_email", (email === "with").toString());
       }
       
-      const response = await request<any>(`/project/?${queryParams.toString()}`);
+      const response = await request<PaginatedResponse<Project>>(`/project/?${queryParams.toString()}`);
       
       if (response.items) {
           setProjects(response.items);
@@ -80,20 +80,12 @@ const ProjectsPage = () => {
              has_next: response.has_next,
              has_prev: response.has_prev
           });
-      } else if (Array.isArray(response)) {
-         if (response.length === 2 && Array.isArray(response[0]) && 'total' in response[1]) {
-             setProjects(response[0]);
-             setPagination(response[1]);
-         } else {
-             setProjects(response);
-             setPagination(undefined);
-         }
       } else {
           setProjects([]);
       }
 
-    } catch (e: any) {
-      setError(e.message || "Failed to load projects");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load projects");
     } finally {
       setIsLoading(false);
     }
@@ -173,8 +165,8 @@ const ProjectsPage = () => {
         closeModal();
       }
       fetchProjects(currentPage, searchQuery);
-    } catch (e: any) {
-      alert(`Error: ${e.message}`);
+    } catch (e: unknown) {
+      alert(`Error: ${e instanceof Error ? e.message : "Unknown error"}`);
     }
   };
 
@@ -184,8 +176,8 @@ const ProjectsPage = () => {
       await request(`/project/${id}`, { method: "DELETE" });
       alert("Project deleted successfully");
       fetchProjects(currentPage, searchQuery);
-    } catch (e: any) {
-      alert(`Error deleting project: ${e.message}`);
+    } catch (e: unknown) {
+      alert(`Error deleting project: ${e instanceof Error ? e.message : "Unknown error"}`);
     }
   };
 

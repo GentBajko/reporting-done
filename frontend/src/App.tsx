@@ -50,8 +50,8 @@ const LoginPage = () => {
     try {
       await login(email, password);
       navigate("/");
-    } catch (err: any) {
-      setError(err.message || "Login failed. Please check your credentials.");
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Login failed. Please check your credentials.");
     } finally {
       setIsLoading(false);
     }

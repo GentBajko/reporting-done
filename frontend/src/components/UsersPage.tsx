@@ -13,7 +13,7 @@ import Modal from "./Modal";
 import DataTable from "./common/DataTable";
 import FloatingActionButton from "./common/FloatingActionButton";
 import { useApi } from "../hooks/useApi";
-import type { User, PaginatedResponse, Pagination } from "../types";
+import type { User, PaginatedResponse, Pagination, Project, Task, Log } from "../types";
 
 const getPermissionsRole = (
   permissions: number
@@ -89,8 +89,8 @@ const UsersPage = () => {
       } else {
           setUsers([]);
       }
-    } catch (e: any) {
-      setError(e.message || "Failed to load users");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load users");
     } finally {
       setIsLoading(false);
     }
@@ -138,12 +138,10 @@ const UsersPage = () => {
       setUserStats(null);
       
       try {
-          // Parallel fetch for counts if not present in user object
-          // Using limit=1 just to get 'total' from pagination
           const [projRes, taskRes, logRes] = await Promise.all([
-              request<PaginatedResponse<any>>(`/user/${user.id}/projects?limit=1`),
-              request<PaginatedResponse<any>>(`/user/${user.id}/tasks?limit=1`),
-              request<PaginatedResponse<any>>(`/user/${user.id}/logs?limit=1`)
+              request<PaginatedResponse<Project>>(`/user/${user.id}/projects?limit=1`),
+              request<PaginatedResponse<Task>>(`/user/${user.id}/tasks?limit=1`),
+              request<PaginatedResponse<Log>>(`/user/${user.id}/logs?limit=1`)
           ]);
 
           setUserStats({
@@ -151,7 +149,7 @@ const UsersPage = () => {
               tasks: taskRes.total,
               logs: logRes.total
           });
-      } catch (e) {
+      } catch (e: unknown) {
           console.error("Failed to fetch user stats", e);
       }
   };
@@ -172,36 +170,33 @@ const UsersPage = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
-      const payload: any = {
+      const basePayload = {
           full_name: formData.full_name,
           email: formData.email,
           permissions: formData.permissions
       };
-      
-      if (!isEditModalOpen) {
-          payload.password = formData.password;
-      }
 
       if (isEditModalOpen && editingUser) {
         await request(`/user/${editingUser.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(basePayload),
         });
         alert("User updated successfully!");
         closeEditModal();
       } else {
+        const createPayload = { ...basePayload, password: formData.password };
         await request("/user/", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
+          body: JSON.stringify(createPayload),
         });
         alert("User created successfully!");
         closeModal();
       }
       fetchUsers(currentPage);
-    } catch (e: any) {
-      alert(`Error: ${e.message}`);
+    } catch (e: unknown) {
+      alert(`Error: ${e instanceof Error ? e.message : "Unknown error"}`);
     }
   };
 
@@ -211,8 +206,8 @@ const UsersPage = () => {
       await request(`/user/${id}`, { method: "DELETE" });
       alert("User deleted successfully");
       fetchUsers(currentPage);
-    } catch (e: any) {
-      alert(`Error deleting user: ${e.message}`);
+    } catch (e: unknown) {
+      alert(`Error deleting user: ${e instanceof Error ? e.message : "Unknown error"}`);
     }
   };
 

@@ -135,9 +135,9 @@ const HomePage = () => {
       try {
         const data = await request<DashboardSummaryData>("/api/dashboard/summary");
         setSummaryData(data);
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.error("Failed to fetch dashboard summary:", e);
-        setError(e.message || "Failed to load data");
+        setError(e instanceof Error ? e.message : "Failed to load data");
       } finally {
         setIsLoading(false);
       }

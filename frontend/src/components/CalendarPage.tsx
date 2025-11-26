@@ -186,16 +186,14 @@ const CalendarPage = () => {
       try {
         const users = await request<ViewableUser[]>("/calendar/viewable-users");
         setViewableUsers(users);
-        if (!selectedUserId) {
-          setSelectedUserId(user.id);
-        }
-      } catch (e: any) {
+        setSelectedUserId((current) => current || user.id);
+      } catch (e: unknown) {
         console.error("Failed to fetch viewable users:", e);
       }
     };
     
     fetchViewableUsers();
-  }, [user?.id, isLoadingAuth]);
+  }, [user?.id, isLoadingAuth, request]);
 
   useEffect(() => {
     if (isLoadingAuth || !user?.id || !selectedUserId) return;
@@ -275,16 +273,16 @@ const CalendarPage = () => {
             return 0;
           })
         );
-      } catch (e: any) {
+      } catch (e: unknown) {
         console.error("Failed to fetch calendar data:", e);
-        setError(e.message || "Failed to load calendar data");
+        setError(e instanceof Error ? e.message : "Failed to load calendar data");
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchCalendarData();
-  }, [user?.id, isLoadingAuth, currentDisplayDate, refreshKey, selectedUserId]);
+  }, [user?.id, isLoadingAuth, currentDisplayDate, refreshKey, selectedUserId, request]);
 
   const getMonthCalendar = useCallback((): CalendarDay[] => {
     const year = currentDisplayDate.getFullYear();
@@ -359,8 +357,8 @@ const CalendarPage = () => {
         });
         setRefreshKey((k) => k + 1);
         addToast(`${newEventType} day saved successfully!`, "success");
-      } catch (e: any) {
-        addToast("Failed to update availability: " + e.message, "error");
+      } catch (e: unknown) {
+        addToast("Failed to update availability: " + (e instanceof Error ? e.message : "Unknown error"), "error");
       }
       closeModal();
       return;
@@ -381,8 +379,8 @@ const CalendarPage = () => {
       });
       setRefreshKey((k) => k + 1);
       addToast(`${newEventType} event created successfully!`, "success");
-    } catch (e: any) {
-      addToast("Failed to create event: " + e.message, "error");
+    } catch (e: unknown) {
+      addToast("Failed to create event: " + (e instanceof Error ? e.message : "Unknown error"), "error");
     }
     closeModal();
   };

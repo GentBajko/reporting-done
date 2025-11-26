@@ -129,8 +129,8 @@ const TasksPage = () => {
         } else {
             setTasks([]);
         }
-    } catch (e: any) {
-      setError(e.message || "Failed to load tasks");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load tasks");
     } finally {
       setIsLoading(false);
     }
@@ -138,18 +138,12 @@ const TasksPage = () => {
 
   const fetchOptions = async () => {
       try {
-          const projRes = await request<any>('/project/?limit=100');
-          const userRes = await request<any>('/user/?limit=100');
+          const projRes = await request<PaginatedResponse<Project>>('/project/?limit=100');
+          const userRes = await request<PaginatedResponse<User>>('/user/?limit=100');
           
-          if (Array.isArray(projRes)) setProjects(projRes);
-          else if (projRes.items) setProjects(projRes.items);
-          else if (Array.isArray(projRes[0])) setProjects(projRes[0]);
-
-          if (Array.isArray(userRes)) setUsers(userRes);
-          else if (userRes.items) setUsers(userRes.items);
-          else if (Array.isArray(userRes[0])) setUsers(userRes[0]);
-
-      } catch (e) {
+          if (projRes.items) setProjects(projRes.items);
+          if (userRes.items) setUsers(userRes.items);
+      } catch (e: unknown) {
           console.error("Failed to fetch options", e);
       }
   };
@@ -202,13 +196,11 @@ const TasksPage = () => {
       setCurrentTaskForLogs(task);
       setIsLogsModalOpen(true);
       try {
-          const response = await request<any>(`/task/${task.id}/logs`);
+          const response = await request<PaginatedResponse<Log>>(`/task/${task.id}/logs`);
           if (response.items) {
               setTaskLogs(response.items);
-          } else if (Array.isArray(response)) {
-               setTaskLogs(response);
           }
-      } catch (e) {
+      } catch (e: unknown) {
           console.error("Failed to fetch task logs", e);
       }
   };
@@ -235,7 +227,7 @@ const TasksPage = () => {
       // Let's stick to JSON as it's cleaner for numbers.
       // Backend accepts Pydantic models, so JSON is preferred.
       
-      const payload: any = {
+      const payload = {
           title: formData.title,
           project_id: formData.project_id,
           user_id: formData.user_id,
@@ -262,8 +254,8 @@ const TasksPage = () => {
         closeModal();
       }
       fetchTasks(currentPage, searchQuery);
-    } catch (e: any) {
-      alert(`Error: ${e.message}`);
+    } catch (e: unknown) {
+      alert(`Error: ${e instanceof Error ? e.message : "Unknown error"}`);
     }
   };
 
@@ -273,8 +265,8 @@ const TasksPage = () => {
       await request(`/task/${id}`, { method: "DELETE" });
       alert("Task deleted successfully");
       fetchTasks(currentPage, searchQuery);
-    } catch (e: any) {
-      alert(`Error deleting task: ${e.message}`);
+    } catch (e: unknown) {
+      alert(`Error deleting task: ${e instanceof Error ? e.message : "Unknown error"}`);
     }
   };
 

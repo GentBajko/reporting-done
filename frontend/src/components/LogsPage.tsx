@@ -162,8 +162,8 @@ const LogsPage = () => {
       } else {
           setLogs([]);
       }
-    } catch (e: any) {
-      setError(e.message || "Failed to load logs");
+    } catch (e: unknown) {
+      setError(e instanceof Error ? e.message : "Failed to load logs");
     } finally {
       setIsLoading(false);
     }
@@ -171,19 +171,15 @@ const LogsPage = () => {
 
   const fetchOptions = async () => {
       try {
-          const taskRes = await request<any>('/task/?limit=100');
+          const taskRes = await request<PaginatedResponse<Task>>('/task/?limit=100');
           if (taskRes.items) setTasks(taskRes.items);
-          else if (Array.isArray(taskRes)) setTasks(taskRes);
 
-          const projRes = await request<any>('/project/?limit=100');
+          const projRes = await request<PaginatedResponse<Project>>('/project/?limit=100');
           if (projRes.items) setProjects(projRes.items);
-          else if (Array.isArray(projRes)) setProjects(projRes);
           
-          const userRes = await request<any>('/user/?limit=100');
+          const userRes = await request<PaginatedResponse<User>>('/user/?limit=100');
           if (userRes.items) setUsers(userRes.items);
-          else if (Array.isArray(userRes)) setUsers(userRes);
-
-      } catch (e) {
+      } catch (e: unknown) {
           console.error("Failed to fetch options", e);
       }
   };
@@ -274,8 +270,8 @@ const LogsPage = () => {
         closeModal();
       }
       fetchLogs(currentPage);
-    } catch (e: any) {
-      alert(`Error: ${e.message}`);
+    } catch (e: unknown) {
+      alert(`Error: ${e instanceof Error ? e.message : "Unknown error"}`);
     }
   };
 
@@ -285,8 +281,8 @@ const LogsPage = () => {
       await request(`/log/${id}`, { method: "DELETE" });
       alert("Log deleted successfully");
       fetchLogs(currentPage);
-    } catch (e: any) {
-      alert(`Error deleting log: ${e.message}`);
+    } catch (e: unknown) {
+      alert(`Error deleting log: ${e instanceof Error ? e.message : "Unknown error"}`);
     }
   };
 

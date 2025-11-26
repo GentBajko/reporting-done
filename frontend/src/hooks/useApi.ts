@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 
-interface UseApiOptions {
-  onSuccess?: (data: any) => void;
+interface UseApiOptions<T = unknown> {
+  onSuccess?: (data: T) => void;
   onError?: (error: Error) => void;
 }
 
@@ -42,8 +42,8 @@ export const useApi = () => {
       }
 
       return await response.json();
-    } catch (err: any) {
-      const message = err.message || 'An unexpected error occurred';
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'An unexpected error occurred';
       setError(message);
       throw err;
     } finally {
