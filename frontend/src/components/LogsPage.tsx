@@ -9,40 +9,16 @@ import {
   HiOutlineInformationCircle,
   HiOutlinePencil,
   HiPlus,
+  HiX
 } from "react-icons/hi";
 import Modal from "./Modal";
-
-interface LogEntry {
-  id: string;
-  task_name: string;
-  description: string;
-  user_id: string;
-  user_name: string;
-  project_id: string;
-  project_name: string;
-  hours_spent_today: number;
-  task_status: string;
-  timestamp: number;
-  task_id: string;
-}
-
-interface NewLogData {
-  task_id: string;
-  description: string;
-  hours_spent_today: number;
-  task_status: string;
-}
-
-interface UpdateLogData {
-  task_id: string;
-  task_name: string;
-  description: string;
-  hours_spent_today: number;
-  task_status: string;
-}
+import DataTable from "./common/DataTable";
+import SearchFilter from "./common/SearchFilter";
+import { useApi } from "../hooks/useApi";
+import { Log, Task, Pagination, PaginatedResponse } from "../types";
 
 const getLogStatusClass = (task_status: string) => {
-  switch (task_status.toLowerCase()) {
+  switch (task_status?.toLowerCase()) {
     case "in progress":
       return {
         Icon: HiOutlineInformationCircle,
@@ -71,570 +47,403 @@ const getLogStatusClass = (task_status: string) => {
 };
 
 const LogsPage = () => {
+  const { request } = useApi();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingLog, setEditingLog] = useState<LogEntry | null>(null);
-  const [logs, setLogs] = useState<LogEntry[]>([]);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+
+  const [logs, setLogs] = useState<Log[]>([]);
+  const [pagination, setPagination] = useState<Pagination | undefined>(undefined);
+  const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [newLogTaskId, setNewLogTaskId] = useState("");
-  const [newLogDescription, setNewLogDescription] = useState("");
-  const [newLogHoursSpent, setNewLogHoursSpent] = useState<number | string>("");
-  const [newLogTaskStatus, setNewLogTaskStatus] = useState("In Progress");
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [viewingLog, setViewingLog] = useState<Log | null>(null);
+  const [editingLog, setEditingLog] = useState<Log | null>(null);
 
-  const [editLogTaskId, setEditLogTaskId] = useState("");
-  const [editLogTaskName, setEditLogTaskName] = useState("");
-  const [editLogDescription, setEditLogDescription] = useState("");
-  const [editLogHoursSpent, setEditLogHoursSpent] = useState<number | string>(
-    ""
-  );
-  const [editLogTaskStatus, setEditLogTaskStatus] = useState("");
+  const [formData, setFormData] = useState({
+    task_id: "",
+    description: "",
+    hours_spent_today: 0,
+    task_status: "In Progress",
+  });
 
-  useEffect(() => {
-    const fetchLogs = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const response = await fetch("/log/");
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data: LogEntry[] = await response.json();
-        setLogs(data.sort((a, b) => b.timestamp - a.timestamp));
-      } catch (e: any) {
-        console.error("Failed to fetch logs:", e);
-        setError(e.message || "Failed to load logs");
-      } finally {
-        setIsLoading(false);
+  // Backend logs endpoint currently only supports pagination, no search filters exposed in controller
+  const fetchLogs = async (page: number = 1) => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const queryParams = new URLSearchParams({
+        page: page.toString(),
+        limit: "15",
+      });
+
+      const response = await request<PaginatedResponse<Log>>(`/log/?${queryParams.toString()}`);
+
+      if (response.items) {
+          setLogs(response.items);
+          setPagination({
+             page: response.page,
+             per_page: response.per_page,
+             total: response.total,
+             total_pages: Math.ceil(response.total / response.per_page),
+             has_next: response.has_next,
+             has_prev: response.has_prev
+          });
+      } else {
+          setLogs([]);
       }
-    };
-    fetchLogs();
-  }, []);
-
-  const openModal = () => setIsModalOpen(true);
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setNewLogTaskId("");
-    setNewLogDescription("");
-    setNewLogHoursSpent("");
-    setNewLogTaskStatus("In Progress");
+    } catch (e: any) {
+      setError(e.message || "Failed to load logs");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const openEditModal = (log: LogEntry) => {
+  // Fetch tasks for dropdown
+  const fetchTasks = async () => {
+      try {
+          // Fetching a batch of tasks. In production, this should be a searchable select.
+          const response = await request<any>('/task/?limit=100');
+          if (response.items) setTasks(response.items);
+          else if (Array.isArray(response)) setTasks(response); // Fallback
+      } catch (e) {
+          console.error("Failed to fetch tasks", e);
+      }
+  };
+
+  useEffect(() => {
+    fetchLogs(currentPage);
+  }, [currentPage]);
+
+  useEffect(() => {
+      if (isModalOpen) {
+          fetchTasks();
+      }
+  }, [isModalOpen]);
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const openModal = () => {
+    setFormData({
+        task_id: "",
+        description: "",
+        hours_spent_today: 0,
+        task_status: "In Progress"
+    });
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => setIsModalOpen(false);
+
+  const openEditModal = (log: Log) => {
     setEditingLog(log);
-    setEditLogTaskId(log.task_id);
-    setEditLogTaskName(log.task_name);
-    setEditLogDescription(log.description);
-    setEditLogHoursSpent(log.hours_spent_today);
-    setEditLogTaskStatus(log.task_status);
+    setFormData({
+      task_id: log.task_id,
+      description: log.description,
+      hours_spent_today: log.hours_spent_today,
+      task_status: log.task_status,
+    });
     setIsEditModalOpen(true);
   };
 
   const closeEditModal = () => {
     setIsEditModalOpen(false);
     setEditingLog(null);
-    setEditLogTaskId("");
-    setEditLogTaskName("");
-    setEditLogDescription("");
-    setEditLogHoursSpent("");
-    setEditLogTaskStatus("");
   };
 
-  const handleCreateLog = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    const hoursSpent = parseFloat(String(newLogHoursSpent));
-    if (isNaN(hoursSpent)) {
-      alert("Please enter a valid number for hours spent (can be 0).");
-      return;
-    }
-    if (!newLogTaskId) {
-      alert("Please select or enter a Task ID.");
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append("task_id", newLogTaskId);
-    formData.append("description", newLogDescription);
-    formData.append("hours_spent_today", String(hoursSpent));
-    formData.append("task_status", newLogTaskStatus);
-
-    try {
-      const response = await fetch("/log/", {
-        method: "POST",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ detail: "Failed to create log. Unknown error." }));
-        throw new Error(
-          errorData.detail || `HTTP error! status: ${response.status}`
-        );
-      }
-      const createdLog: LogEntry = await response.json();
-      setLogs([createdLog, ...logs].sort((a, b) => b.timestamp - a.timestamp));
-      closeModal();
-      alert(
-        `Log entry for task ID "${createdLog.task_id}" created successfully!`
-      );
-    } catch (e: any) {
-      console.error("Failed to create log:", e);
-      setError(e.message || "Failed to create log");
-      alert(`Error creating log: ${e.message}`);
-    }
+  const openViewModal = (log: Log) => {
+      setViewingLog(log);
+      setIsViewModalOpen(true);
   };
 
-  const handleUpdateLog = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    if (!editingLog) return;
+  const closeViewModal = () => {
+      setIsViewModalOpen(false);
+      setViewingLog(null);
+  };
 
-    const hoursSpent = parseFloat(String(editLogHoursSpent));
-    if (isNaN(hoursSpent)) {
-      alert("Please enter a valid number for hours spent.");
-      return;
-    }
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: name === 'hours_spent_today' ? parseFloat(value) : value,
+    }));
+  };
 
-    const formData = new FormData();
-    formData.append("task_id", editLogTaskId);
-    formData.append("task_name", editLogTaskName);
-    formData.append("description", editLogDescription);
-    formData.append("hours_spent_today", String(hoursSpent));
-    formData.append("task_status", editLogTaskStatus);
-
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
-      const response = await fetch(`/log/${editingLog.id}`, {
-        method: "PUT",
-        body: formData,
-      });
+      const payload = {
+          task_id: formData.task_id,
+          description: formData.description,
+          hours_spent_today: formData.hours_spent_today,
+          task_status: formData.task_status
+      };
 
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ detail: "Failed to update log. Unknown error." }));
-        throw new Error(
-          errorData.detail || `HTTP error! status: ${response.status}`
-        );
+      if (isEditModalOpen && editingLog) {
+        await request(`/log/${editingLog.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        alert("Log updated successfully!");
+        closeEditModal();
+      } else {
+        await request("/log/", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+        alert("Log created successfully!");
+        closeModal();
       }
-      const updatedLog: LogEntry = await response.json();
-      setLogs(
-        logs
-          .map((log) => (log.id === updatedLog.id ? updatedLog : log))
-          .sort((a, b) => b.timestamp - a.timestamp)
-      );
-      closeEditModal();
-      alert(
-        `Log entry for task "${updatedLog.task_name}" updated successfully!`
-      );
+      fetchLogs(currentPage);
     } catch (e: any) {
-      console.error("Failed to update log:", e);
-      setError(e.message || "Failed to update log");
-      alert(`Error updating log: ${e.message}`);
+      alert(`Error: ${e.message}`);
     }
   };
 
-  const handleDeleteLog = async (logId: string, logTaskName: string) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to delete the log for "${logTaskName}" (ID: ${logId})? This will also adjust task hours.`
-      )
-    ) {
-      return;
-    }
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this log?")) return;
     try {
-      const response = await fetch(`/log/${logId}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) {
-        if (response.status === 404) throw new Error("Log not found.");
-        if (response.status === 403)
-          throw new Error("Not authorized to delete this log.");
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      setLogs(logs.filter((log) => log.id !== logId));
-      alert(`Log ID ${logId} deleted successfully.`);
+      await request(`/log/${id}`, { method: "DELETE" });
+      alert("Log deleted successfully");
+      fetchLogs(currentPage);
     } catch (e: any) {
-      console.error("Failed to delete log:", e);
-      setError(e.message || "Failed to delete log");
       alert(`Error deleting log: ${e.message}`);
     }
   };
 
-  if (isLoading) {
-    return <div className="p-6 text-center">Loading logs...</div>;
-  }
-
-  if (error && logs.length === 0) {
-    return (
-      <div className="p-6 bg-red-100 border border-red-400 text-red-700 rounded-lg shadow-md">
-        <h2 className="text-xl font-semibold mb-2">Error Loading Logs</h2>
-        <p>{error}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition"
-        >
-          Try Again
-        </button>
-      </div>
-    );
-  }
+  const columns = [
+    {
+      header: "Timestamp",
+      accessor: (log: Log) => (
+        <div>
+            <div className="text-sm text-gray-900">{new Date(log.timestamp * 1000).toLocaleString()}</div>
+            <div className="text-xs text-gray-500">ID: {log.id}</div>
+        </div>
+      ),
+    },
+    {
+      header: "Task / Project",
+      accessor: (log: Log) => (
+        <div>
+            <div className="font-medium text-gray-900">{log.task_name}</div>
+            <div className="text-xs text-gray-500">{log.project_name}</div>
+        </div>
+      ),
+    },
+    {
+      header: "User",
+      accessor: (log: Log) => (
+          <span className="text-sm text-gray-700">{log.user_name}</span>
+      )
+    },
+    {
+      header: "Details",
+      accessor: (log: Log) => (
+        <div>
+            <div className="text-sm text-gray-700 truncate w-48" title={log.description}>{log.description}</div>
+            <div className="flex items-center mt-1 text-xs text-gray-500">
+                <HiOutlineClock className="mr-1" /> {log.hours_spent_today} hrs
+            </div>
+        </div>
+      ),
+    },
+    {
+      header: "Status",
+      accessor: (log: Log) => {
+          const { Icon, className } = getLogStatusClass(log.task_status);
+          return (
+            <span className={`px-2 py-1 inline-flex items-center text-xs leading-5 font-semibold rounded-full ${className}`}>
+                <Icon className="mr-1 h-4 w-4" /> {log.task_status}
+            </span>
+          );
+      },
+    },
+    {
+      header: "Actions",
+      className: "text-right",
+      render: (log: Log) => (
+        <div className="flex justify-end space-x-2">
+          <button onClick={() => openViewModal(log)} className="text-[#002F41] hover:text-[#004057] p-1">
+            <HiOutlineEye className="h-5 w-5" />
+          </button>
+          <button onClick={() => openEditModal(log)} className="text-indigo-600 hover:text-indigo-900 p-1">
+            <HiOutlinePencil className="h-5 w-5" />
+          </button>
+          <button onClick={() => handleDelete(log.id)} className="text-red-600 hover:text-red-900 p-1">
+             {/* Check if backend allows delete? Usually yes for admin or owner */}
+            <HiOutlineBan className="h-5 w-5" />
+          </button>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+        {/* Search is disabled as backend doesn't support it yet on this endpoint */}
+        <div className="w-full max-w-xs"></div> 
         <button
           onClick={openModal}
           className="bg-[#002F41] hover:bg-[#004057] text-white font-semibold py-2 px-4 rounded inline-flex items-center transition duration-150"
         >
           <HiPlus className="mr-2 h-5 w-5" />
-          Create New Log Entry
+          Create New Log
         </button>
       </div>
 
-      <div className="bg-white shadow-md rounded-lg overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-              >
-                Timestamp
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-              >
-                Project / Task
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-              >
-                User
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-              >
-                Log Message / Hours
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-              >
-                Task Status
-              </th>
-              <th scope="col" className="relative px-6 py-3">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {logs.length === 0 && !isLoading && (
-              <tr>
-                <td
-                  colSpan={6}
-                  className="px-6 py-12 text-center text-gray-500"
-                >
-                  No logs found.
-                  {isModalOpen
-                    ? ""
-                    : " Click 'Create New Log Entry' to add one."}
-                </td>
-              </tr>
-            )}
-            {logs.map((log) => {
-              const { Icon, className } = getLogStatusClass(log.task_status);
-              return (
-                <tr
-                  key={log.id}
-                  className="hover:bg-gray-50 transition duration-150"
-                >
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-left">
-                    {new Date(log.timestamp * 1000).toLocaleString()}
-                    <div className="text-xs text-gray-500">ID: {log.id}</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-normal text-sm text-gray-900 text-left">
-                    <div>{log.project_name}</div>
-                    <div className="text-xs text-gray-600">{log.task_name}</div>
-                    <div className="text-xs text-gray-500 mt-1 flex items-center">
-                      <HiOutlineIdentification className="w-3 h-3 mr-1" /> Task
-                      ID: {log.task_id}
-                    </div>
-                    <div className="text-xs text-gray-500 flex items-center">
-                      <HiOutlineIdentification className="w-3 h-3 mr-1" /> Proj
-                      ID: {log.project_id}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-left">
-                    {log.user_name}
-                    <div className="text-xs text-gray-500">
-                      ID: {log.user_id}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-normal text-sm text-gray-900 text-left">
-                    {log.description}
-                    <div className="text-xs text-gray-500 mt-1 flex items-center">
-                      <HiOutlineClock className="w-3 h-3 mr-1 text-blue-500" />{" "}
-                      Hours: {log.hours_spent_today.toFixed(1)}
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-left">
-                    <span
-                      className={`px-2.5 py-0.5 inline-flex items-center text-xs leading-5 font-semibold rounded-full ${className}`}
-                    >
-                      <Icon className="mr-1.5 h-4 w-4" />
-                      {log.task_status}
-                    </span>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                    <button
-                      onClick={() =>
-                        alert(`View details for log ${log.id} - TBD`)
-                      }
-                      className="text-[#002F41] hover:text-[#004057] mr-2 p-1 rounded hover:bg-gray-200 transition duration-150"
-                      title="View Log Details"
-                    >
-                      <HiOutlineEye className="h-5 w-5" />
-                    </button>
-                    <button
-                      onClick={() => openEditModal(log)}
-                      className="text-indigo-600 hover:text-indigo-800 mr-2 p-1 rounded hover:bg-gray-200 transition duration-150"
-                      title="Edit Log"
-                    >
-                      <HiOutlinePencil className="h-5 w-5" />
-                    </button>
-                    <button
-                      onClick={() => handleDeleteLog(log.id, log.task_name)}
-                      className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-gray-200 transition duration-150"
-                      title="Delete Log"
-                    >
-                      <HiOutlineBan className="h-5 w-5" />
-                    </button>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
-      {error && (
-        <div className="p-3 bg-red-100 text-red-700 rounded-md">
-          Error during log operation: {error}. Some data might be stale.
-        </div>
-      )}
+      {error && <div className="text-red-600 bg-red-100 p-3 rounded">{error}</div>}
 
+      <DataTable
+        columns={columns}
+        data={logs}
+        pagination={pagination}
+        onPageChange={handlePageChange}
+        isLoading={isLoading}
+      />
+
+      {/* Create/Edit Modal */}
       <Modal
-        isOpen={isModalOpen}
-        onClose={closeModal}
-        title="Create New Log Entry"
+        isOpen={isModalOpen || isEditModalOpen}
+        onClose={isEditModalOpen ? closeEditModal : closeModal}
+        title={isEditModalOpen ? "Edit Log Entry" : "Create New Log Entry"}
       >
-        <form onSubmit={handleCreateLog} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label
-              htmlFor="newLogTaskId"
-              className="block text-sm font-medium text-gray-700"
+            <label className="block text-sm font-medium text-gray-700">Task *</label>
+            <select
+                name="task_id"
+                value={formData.task_id}
+                onChange={handleInputChange}
+                required
+                disabled={isEditModalOpen} // Often log task ID shouldn't change, or if allowed, ensure backend supports it. Backend LogUpdateDTO doesn't seem to have task_id.
+                className="mt-1 block w-full p-2 border rounded bg-white disabled:bg-gray-100"
             >
-              Task ID <span className="text-red-500">*</span>
-            </label>
-            <input
-              type="text"
-              id="newLogTaskId"
-              value={newLogTaskId}
-              onChange={(e) => setNewLogTaskId(e.target.value)}
-              required
-              placeholder="Enter associated Task ID"
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            />
-          </div>
-
-          <div>
-            <label
-              htmlFor="newLogDescription"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Description / Notes <span className="text-red-500">*</span>
-            </label>
-            <textarea
-              id="newLogDescription"
-              value={newLogDescription}
-              onChange={(e) => setNewLogDescription(e.target.value)}
-              required
-              rows={3}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            ></textarea>
+                <option value="">Select Task</option>
+                {tasks.map(t => (
+                    <option key={t.id} value={t.id}>{t.title}</option>
+                ))}
+            </select>
+            {isEditModalOpen && <p className="text-xs text-gray-500 mt-1">Task cannot be changed for existing log.</p>}
           </div>
           <div>
-            <label
-              htmlFor="newLogHoursSpent"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Hours Spent Today <span className="text-red-500">*</span>
-            </label>
+            <label className="block text-sm font-medium text-gray-700">Hours Spent *</label>
             <input
               type="number"
-              id="newLogHoursSpent"
-              value={newLogHoursSpent}
-              onChange={(e) => setNewLogHoursSpent(e.target.value)}
+              name="hours_spent_today"
+              value={formData.hours_spent_today}
+              onChange={handleInputChange}
               required
-              min="0"
-              step="0.25"
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              min="0.1"
+              step="0.1"
+              className="mt-1 block w-full input-standard p-2 border rounded"
             />
           </div>
           <div>
-            <label
-              htmlFor="newLogTaskStatus"
-              className="block text-sm font-medium text-gray-700"
-            >
-              New Task Status <span className="text-red-500">*</span>
-            </label>
-            <select
-              id="newLogTaskStatus"
-              value={newLogTaskStatus}
-              onChange={(e) => setNewLogTaskStatus(e.target.value)}
+            <label className="block text-sm font-medium text-gray-700">Description *</label>
+            <textarea
+              name="description"
+              value={formData.description}
+              onChange={handleInputChange}
               required
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            >
-              <option value="To Do">To Do</option>
-              <option value="In Progress">In Progress</option>
-              <option value="Done">Done</option>
-              <option value="Returned">Returned</option>
-            </select>
+              rows={3}
+              className="mt-1 block w-full input-standard p-2 border rounded"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-gray-700">Task Status</label>
+             <select
+                  name="task_status"
+                  value={formData.task_status}
+                  onChange={handleInputChange}
+                  className="mt-1 block w-full p-2 border rounded"
+              >
+                  <option value="To Do">To Do</option>
+                  <option value="In Progress">In Progress</option>
+                  <option value="Done">Done</option>
+                  <option value="Returned">Returned</option>
+              </select>
           </div>
 
-          <div className="flex justify-end space-x-3 pt-2">
+          <div className="flex justify-end space-x-3 pt-4">
             <button
               type="button"
-              onClick={closeModal}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition duration-150"
+              onClick={isEditModalOpen ? closeEditModal : closeModal}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-[#002F41] hover:bg-[#004057] rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#002F41] transition duration-150"
+              className="px-4 py-2 text-sm font-medium text-white bg-[#002F41] hover:bg-[#004057] rounded-md"
             >
-              Create Log
+              {isEditModalOpen ? "Save Changes" : "Create Log"}
             </button>
           </div>
         </form>
       </Modal>
 
-      {editingLog && (
-        <Modal
-          isOpen={isEditModalOpen}
-          onClose={closeEditModal}
-          title={`Edit Log Entry (ID: ${editingLog.id})`}
-        >
-          <form onSubmit={handleUpdateLog} className="space-y-4">
-            <div>
-              <label
-                htmlFor="editLogTaskId"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Task ID <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                id="editLogTaskId"
-                value={editLogTaskId}
-                onChange={(e) => setEditLogTaskId(e.target.value)}
-                required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-gray-100"
-                readOnly
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="editLogTaskName"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Task Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                id="editLogTaskName"
-                value={editLogTaskName}
-                onChange={(e) => setEditLogTaskName(e.target.value)}
-                required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="editLogDescription"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Description / Notes <span className="text-red-500">*</span>
-              </label>
-              <textarea
-                id="editLogDescription"
-                value={editLogDescription}
-                onChange={(e) => setEditLogDescription(e.target.value)}
-                required
-                rows={3}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              ></textarea>
-            </div>
-            <div>
-              <label
-                htmlFor="editLogHoursSpent"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Hours Spent <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="number"
-                id="editLogHoursSpent"
-                value={editLogHoursSpent}
-                onChange={(e) => setEditLogHoursSpent(e.target.value)}
-                required
-                min="0"
-                step="0.25"
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="editLogTaskStatus"
-                className="block text-sm font-medium text-gray-700"
-              >
-                New Task Status <span className="text-red-500">*</span>
-              </label>
-              <select
-                id="editLogTaskStatus"
-                value={editLogTaskStatus}
-                onChange={(e) => setEditLogTaskStatus(e.target.value)}
-                required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              >
-                <option value="To Do">To Do</option>
-                <option value="In Progress">In Progress</option>
-                <option value="Done">Done</option>
-                <option value="Returned">Returned</option>
-              </select>
-            </div>
-
-            <div className="flex justify-end space-x-3 pt-2">
-              <button
-                type="button"
-                onClick={closeEditModal}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-gray-500 transition duration-150"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 text-sm font-medium text-white bg-[#002F41] hover:bg-[#004057] rounded-md focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#002F41] transition duration-150"
-              >
-                Save Changes
-              </button>
-            </div>
-          </form>
-        </Modal>
+      {/* View Modal */}
+      {viewingLog && (
+          <div className={`fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden bg-gray-500 bg-opacity-75 p-4 sm:p-6 ${isViewModalOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+              <div className="relative w-full max-w-lg transform rounded-lg bg-white shadow-xl">
+                  <div className="flex items-center justify-between border-b px-4 py-3">
+                      <h3 className="text-lg font-medium leading-6 text-gray-900">Log Details</h3>
+                      <button onClick={closeViewModal} className="text-gray-400 hover:text-gray-500">
+                          <HiX className="h-6 w-6" />
+                      </button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                      <div>
+                          <h4 className="text-sm font-medium text-gray-500">Project</h4>
+                          <p className="mt-1 text-gray-900">{viewingLog.project_name}</p>
+                      </div>
+                      <div>
+                          <h4 className="text-sm font-medium text-gray-500">Task</h4>
+                          <p className="mt-1 text-gray-900">{viewingLog.task_name}</p>
+                      </div>
+                      <div>
+                          <h4 className="text-sm font-medium text-gray-500">User</h4>
+                          <p className="mt-1 text-gray-900">{viewingLog.user_name}</p>
+                      </div>
+                      <div>
+                          <h4 className="text-sm font-medium text-gray-500">Timestamp</h4>
+                          <p className="mt-1 text-gray-900">{new Date(viewingLog.timestamp * 1000).toLocaleString()}</p>
+                      </div>
+                      <div className="border-t pt-4">
+                           <h4 className="text-sm font-medium text-gray-500">Description</h4>
+                           <p className="mt-2 text-gray-900 whitespace-pre-wrap bg-gray-50 p-3 rounded">{viewingLog.description}</p>
+                      </div>
+                      <div className="flex justify-between items-center pt-2">
+                          <div>
+                              <h4 className="text-sm font-medium text-gray-500">Hours Spent</h4>
+                              <p className="mt-1 text-gray-900">{viewingLog.hours_spent_today}</p>
+                          </div>
+                          <div>
+                               <h4 className="text-sm font-medium text-gray-500">Status Set</h4>
+                               <span className={`px-2 py-1 mt-1 inline-flex text-xs rounded-full ${getLogStatusClass(viewingLog.task_status).className}`}>
+                                   {viewingLog.task_status}
+                               </span>
+                          </div>
+                      </div>
+                  </div>
+                  <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 rounded-b-lg">
+                      <button
+                          type="button"
+                          onClick={closeViewModal}
+                          className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
+                      >
+                          Close
+                      </button>
+                  </div>
+              </div>
+          </div>
       )}
     </div>
   );

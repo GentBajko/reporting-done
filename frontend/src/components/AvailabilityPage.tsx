@@ -37,14 +37,15 @@ const AvailabilityPage = () => {
     if (isAdmin) {
       const fetchUsers = async () => {
         try {
-          const response = await fetch("/user/", {
+          const response = await fetch("/user/?limit=100", {
             headers: { Accept: "application/json" },
           });
           if (!response.ok)
             throw new Error("Failed to fetch users for selector");
           const data = await response.json();
+          const users = data.items || (Array.isArray(data) ? data : []);
           setUsersForSelector(
-            data.map((u: any) => ({
+            users.map((u: any) => ({
               id: u.id,
               full_name: u.full_name || u.username || u.email,
             }))

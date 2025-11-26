@@ -13,9 +13,12 @@ body,
 
 body {
   /* min-height: 100vh; */ /* Replaced by height: 100% */
-  /* display: flex; */ /* Removed */
-  /* place-items: center; */ /* Removed */
-  /* min-width: 320px; */ /* Usually not needed for full-page apps */
+}
+
+@layer components {
+  .input-standard {
+    @apply block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm;
+  }
 }
 
 :root {
@@ -45,28 +48,6 @@ h1 {
   line-height: 1.1;
 }
 
-/* Default Vite button styles - Commented out to allow Tailwind to control button styling */
-/*
-button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.6em 1.2em;
-  font-size: 1em;
-  font-weight: 500;
-  font-family: inherit;
-  background-color: #1a1a1a;
-  cursor: pointer;
-  transition: border-color 0.25s;
-}
-button:hover {
-  border-color: #646cff;
-}
-button:focus,
-button:focus-visible {
-  outline: 4px auto -webkit-focus-ring-color;
-}
-*/
-
 @media (prefers-color-scheme: light) {
   :root {
     color: #213547;
@@ -75,10 +56,4 @@ button:focus-visible {
   a:hover {
     color: #747bff;
   }
-  /* Ensure buttons in light mode also don't get the dark default if uncommented above */
-  /* 
-  button {
-    background-color: #f9f9f9;
-  }
-  */
 }

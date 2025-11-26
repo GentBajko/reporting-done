@@ -1,309 +1,261 @@
 import React, { useEffect, useState } from "react";
 import {
   HiOutlineEye,
-  HiOutlineMail,
   HiOutlinePencil,
   HiOutlineTrash,
-  HiOutlineUserGroup,
   HiPlus,
+  HiOutlineMail,
+  HiOutlineUserGroup,
+  HiOutlineClipboardList,
+  HiX
 } from "react-icons/hi";
 import Modal from "./Modal";
-
-interface BasicUser {
-  id: string;
-  full_name: string;
-}
-
-interface BasicTask {
-  id: string;
-  title: string;
-  status?: string;
-}
-
-interface Project {
-  id: string;
-  name: string;
-  email: string | null;
-  send_email: boolean;
-  archived: boolean;
-  developers: BasicUser[];
-  tasks: BasicTask[];
-}
-
-interface NewProjectData {
-  name: string;
-  email: string | null;
-  send_email: boolean;
-  archived: boolean;
-}
-
-interface ProjectFormData {
-  name: string;
-  email: string | null;
-  send_email: boolean;
-  archived: boolean;
-}
-
-const mockProjectsData: Project[] = [
-  {
-    id: "proj-1",
-    name: "Project Alpha",
-    email: "alpha_client@example.com",
-    send_email: true,
-    archived: false,
-    developers: [
-      { id: "usr-1", full_name: "Alice" },
-      { id: "usr-2", full_name: "Bob" },
-    ],
-    tasks: [{ id: "task-1", title: "Design Homepage", status: "In Progress" }],
-  },
-  {
-    id: "proj-2",
-    name: "Project Beta",
-    email: null,
-    send_email: false,
-    archived: false,
-    developers: [{ id: "usr-3", full_name: "Carol" }],
-    tasks: [
-      { id: "task-2", title: "API Development", status: "To Do" },
-      { id: "task-3", title: "Testing", status: "Done" },
-    ],
-  },
-  {
-    id: "proj-3",
-    name: "Old Initiative Gamma",
-    email: "gamma_contact@example.com",
-    send_email: false,
-    archived: true,
-    developers: [],
-    tasks: [],
-  },
-];
-
-const getStatusClass = (archived: boolean) => {
-  if (archived) {
-    return "bg-gray-100 text-gray-800";
-  }
-  return "bg-green-100 text-green-800";
-};
+import DataTable from "./common/DataTable";
+import SearchFilter from "./common/SearchFilter";
+import { useApi } from "../hooks/useApi";
+import { Project, PaginatedResponse, Pagination } from "../types";
 
 const ProjectsPage = () => {
+  const { request } = useApi();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [isViewModalOpen, setIsViewModalOpen] = useState(false);
+  
   const [projects, setProjects] = useState<Project[]>([]);
+  const [pagination, setPagination] = useState<Pagination | undefined>(undefined);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState("");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const [newProjectName, setNewProjectName] = useState("");
-  const [newProjectEmail, setNewProjectEmail] = useState("");
-  const [newProjectSendEmail, setNewProjectSendEmail] = useState(false);
-  const [newProjectArchived, setNewProjectArchived] = useState(false);
+  const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [viewingProject, setViewingProject] = useState<Project | null>(null);
 
-  const [editProjectName, setEditProjectName] = useState("");
-  const [editProjectEmail, setEditProjectEmail] = useState("");
-  const [editProjectSendEmail, setEditProjectSendEmail] = useState(false);
-  const [editProjectArchived, setEditProjectArchived] = useState(false);
+  const [formData, setFormData] = useState({
+    name: "",
+    email: "",
+    send_email: false,
+    archived: false,
+  });
 
-  useEffect(() => {
-    const fetchProjects = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        const response = await fetch("/project/");
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data: Project[] = await response.json();
-        setProjects(data);
-      } catch (e: any) {
-        console.error("Failed to fetch projects:", e);
-        setError(e.message || "Failed to load projects");
-      } finally {
-        setIsLoading(false);
+  const fetchProjects = async (page: number = 1, search: string = "") => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const queryParams = new URLSearchParams({
+        page: page.toString(),
+        limit: "10",
+      });
+      if (search) {
+        queryParams.append("name", search); // Assuming exact match for now, or backend handles it
       }
-    };
+      
+      // The backend currently returns [data, pagination] tuple or similar based on analysis? 
+      // Wait, look at get_all_projects in project_view.py:
+      // return output, pagination
+      // And it's an endpoint. Fastapi usually returns JSON. 
+      // If the return type is Tuple[List[Model], Pagination], FastAPI might serialize it as [list, pagination_dict].
+      // Let's check the previous ProjectsPage implementation... it expected `data: Project[] = await response.json()`.
+      // This implies the previous implementation MIGHT have been wrong about pagination if the backend WAS updated to return a tuple.
+      // OR the backend returns a list directly if no pagination wrapper model is used. 
+      // Let's look at project_controller.py to see the router definition.
+      
+      const response = await request<any>(`/project/?${queryParams.toString()}`);
+      
+      if (response.items) {
+          setProjects(response.items);
+          setPagination({
+             page: response.page,
+             per_page: response.per_page,
+             total: response.total,
+             total_pages: Math.ceil(response.total / response.per_page),
+             has_next: response.has_next,
+             has_prev: response.has_prev
+          });
+      } else if (Array.isArray(response)) {
+         // Legacy fallback if structure is different
+         if (response.length === 2 && Array.isArray(response[0]) && 'total' in response[1]) {
+             setProjects(response[0]);
+             setPagination(response[1]);
+         } else {
+             setProjects(response);
+             setPagination(undefined);
+         }
+      } else {
+          setProjects([]);
+      }
 
-    fetchProjects();
-  }, []);
-
-  const openModal = () => setIsModalOpen(true);
-  const closeModal = () => {
-    setIsModalOpen(false);
-    setNewProjectName("");
-    setNewProjectEmail("");
-    setNewProjectSendEmail(false);
-    setNewProjectArchived(false);
+    } catch (e: any) {
+      setError(e.message || "Failed to load projects");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
-  const openEditModal = (projectToEdit: Project) => {
-    setEditingProject(projectToEdit);
-    setEditProjectName(projectToEdit.name);
-    setEditProjectEmail(projectToEdit.email || "");
-    setEditProjectSendEmail(projectToEdit.send_email);
-    setEditProjectArchived(projectToEdit.archived);
+  useEffect(() => {
+    fetchProjects(currentPage, searchQuery);
+  }, [currentPage, searchQuery]); // Debounce search in real app
+
+  const handlePageChange = (page: number) => {
+    setCurrentPage(page);
+  };
+
+  const openModal = () => {
+    setFormData({ name: "", email: "", send_email: false, archived: false });
+    setIsModalOpen(true);
+  };
+
+  const closeModal = () => setIsModalOpen(false);
+
+  const openEditModal = (project: Project) => {
+    setEditingProject(project);
+    setFormData({
+      name: project.name,
+      email: project.email || "",
+      send_email: project.send_email,
+      archived: project.archived,
+    });
     setIsEditModalOpen(true);
   };
 
   const closeEditModal = () => {
     setIsEditModalOpen(false);
     setEditingProject(null);
-    setEditProjectName("");
-    setEditProjectEmail("");
-    setEditProjectSendEmail(false);
-    setEditProjectArchived(false);
   };
 
-  const handleCreateProject = async (
-    event: React.FormEvent<HTMLFormElement>
-  ) => {
-    event.preventDefault();
+  const openViewModal = (project: Project) => {
+      setViewingProject(project);
+      setIsViewModalOpen(true);
+  };
 
-    const formData = new FormData();
-    formData.append("name", newProjectName);
-    formData.append("email", newProjectEmail);
-    formData.append("send_email", String(newProjectSendEmail));
-    formData.append("archived", String(newProjectArchived));
+  const closeViewModal = () => {
+      setIsViewModalOpen(false);
+      setViewingProject(null);
+  };
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === "checkbox" ? checked : value,
+    }));
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     try {
-      const response = await fetch("/project/", {
-        method: "POST",
-        body: formData,
-      });
+      const data = new FormData();
+      data.append("name", formData.name);
+      data.append("email", formData.email);
+      data.append("send_email", String(formData.send_email));
+      data.append("archived", String(formData.archived));
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({
-          detail: "Failed to create project. Unknown error.",
-        }));
-        throw new Error(
-          errorData.detail || `HTTP error! status: ${response.status}`
-        );
+      if (isEditModalOpen && editingProject) {
+        await request(`/project/${editingProject.id}`, {
+          method: "PUT",
+          body: data,
+        });
+        alert("Project updated successfully!");
+        closeEditModal();
+      } else {
+        await request("/project/", {
+          method: "POST",
+          body: data,
+        });
+        alert("Project created successfully!");
+        closeModal();
       }
-
-      const createdProject: Project = await response.json();
-
-      setProjects([createdProject, ...projects]);
-      closeModal();
-
-      alert(`Project "${createdProject.name}" created successfully!`);
+      fetchProjects(currentPage, searchQuery);
     } catch (e: any) {
-      console.error("Failed to create project:", e);
-      setError(e.message || "Failed to create project");
-      alert(`Error creating project: ${e.message}`);
+      alert(`Error: ${e.message}`);
     }
   };
 
-  const handleUpdateProject = async (
-    event: React.FormEvent<HTMLFormElement>
-  ) => {
-    event.preventDefault();
-    if (!editingProject) return;
-
-    const projectToUpdate: ProjectFormData = {
-      name: editProjectName,
-      email: editProjectEmail === "" ? null : editProjectEmail,
-      send_email: editProjectSendEmail,
-      archived: editProjectArchived,
-    };
-
-    const formData = new FormData();
-    formData.append("name", editProjectName);
-    formData.append("email", editProjectEmail);
-    formData.append("send_email", String(editProjectSendEmail));
-    formData.append("archived", String(editProjectArchived));
-
+  const handleDelete = async (id: string) => {
+    if (!window.confirm("Are you sure you want to delete this project?")) return;
     try {
-      const response = await fetch(`/project/${editingProject.id}`, {
-        method: "PUT",
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({
-          detail: "Failed to update project. Unknown error.",
-        }));
-        throw new Error(
-          errorData.detail || `HTTP error! status: ${response.status}`
-        );
-      }
-
-      const updatedProject: Project = await response.json();
-
-      setProjects(
-        projects.map((p) => (p.id === updatedProject.id ? updatedProject : p))
-      );
-      closeEditModal();
-      alert(`Project "${updatedProject.name}" updated successfully!`);
+      await request(`/project/${id}`, { method: "DELETE" });
+      alert("Project deleted successfully");
+      fetchProjects(currentPage, searchQuery);
     } catch (e: any) {
-      console.error("Failed to update project:", e);
-      setError(e.message || "Failed to update project");
-      alert(`Error updating project: ${e.message}`);
+      alert(`Error deleting project: ${e.message}`);
     }
   };
 
-  const handleDeleteProject = async (
-    projectId: string,
-    projectName: string
-  ) => {
-    if (
-      !window.confirm(
-        `Are you sure you want to delete project "${projectName}" (ID: ${projectId})? This action cannot be undone.`
+  const columns = [
+    {
+      header: "Project Name",
+      accessor: (project: Project) => (
+        <div>
+          <div className="text-sm font-medium text-gray-900">{project.name}</div>
+          <div className="text-xs text-gray-500">ID: {project.id}</div>
+        </div>
+      ),
+    },
+    {
+      header: "Email",
+      accessor: (project: Project) => (
+        <div>
+            {project.email ? (
+                <a href={`mailto:${project.email}`} className="text-indigo-600 hover:underline flex items-center">
+                    <HiOutlineMail className="mr-1" /> {project.email}
+                </a>
+            ) : <span className="text-gray-400">N/A</span>}
+            <div className="text-xs text-gray-500">{project.send_email ? 'Notifs On' : 'Notifs Off'}</div>
+        </div>
+      ),
+    },
+    {
+      header: "Team",
+      accessor: (project: Project) => (
+          <div className="flex items-center text-gray-700">
+              <HiOutlineUserGroup className="mr-1" /> {project.developers?.length || 0} Devs
+          </div>
       )
-    ) {
-      return;
-    }
-    setError(null);
-    try {
-      const response = await fetch(`/project/${projectId}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        if (response.status === 404) throw new Error("Project not found.");
-        if (response.status === 403)
-          throw new Error("Access forbidden to delete this project.");
-
-        const errorData = await response
-          .json()
-          .catch(() => ({ detail: "Cannot delete project" }));
-        throw new Error(
-          errorData.detail || `HTTP error! status: ${response.status}`
-        );
-      }
-
-      setProjects(projects.filter((p) => p.id !== projectId));
-      alert(`Project "${projectName}" deleted successfully.`);
-    } catch (err: any) {
-      console.error("Error deleting project:", err);
-      setError(err.message || "Failed to delete project.");
-      alert(`Error deleting project: ${err.message}`);
-    }
-  };
-
-  if (isLoading) {
-    return <div className="p-6 text-center">Loading projects...</div>;
-  }
-
-  if (error && projects.length === 0) {
-    return (
-      <div className="p-6 bg-red-100 border border-red-400 text-red-700 rounded-lg shadow-md">
-        <h2 className="text-xl font-semibold mb-2">Error Loading Projects</h2>
-        <p>{error}</p>
-        <button
-          onClick={() => window.location.reload()}
-          className="mt-4 px-4 py-2 bg-red-500 text-white rounded hover:bg-red-600 transition"
+    },
+    {
+        header: "Tasks",
+        accessor: (project: Project) => (
+            <div className="flex items-center text-gray-700">
+                <HiOutlineClipboardList className="mr-1" /> {project.tasks?.length || 0} Tasks
+            </div>
+        )
+      },
+    {
+      header: "Status",
+      accessor: (project: Project) => (
+        <span
+          className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
+            project.archived ? "bg-gray-100 text-gray-800" : "bg-green-100 text-green-800"
+          }`}
         >
-          Try Again
-        </button>
-      </div>
-    );
-  }
+          {project.archived ? "Archived" : "Active"}
+        </span>
+      ),
+    },
+    {
+      header: "Actions",
+      className: "text-right",
+      render: (project: Project) => (
+        <div className="flex justify-end space-x-2">
+          <button onClick={() => openViewModal(project)} className="text-[#002F41] hover:text-[#004057] p-1">
+            <HiOutlineEye className="h-5 w-5" />
+          </button>
+          <button onClick={() => openEditModal(project)} className="text-indigo-600 hover:text-indigo-900 p-1">
+            <HiOutlinePencil className="h-5 w-5" />
+          </button>
+          <button onClick={() => handleDelete(project.id)} className="text-red-600 hover:text-red-900 p-1">
+            <HiOutlineTrash className="h-5 w-5" />
+          </button>
+        </div>
+      ),
+    },
+  ];
 
   return (
     <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        {/* Title is now in the main header, so we might not need one here explicitly, or it could be a sub-header */}
-        {/* <h1 className="text-2xl font-semibold text-gray-800">Projects</h1> */}
+      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+        <SearchFilter value={searchQuery} onChange={setSearchQuery} placeholder="Search projects..." />
         <button
           onClick={openModal}
           className="bg-[#002F41] hover:bg-[#004057] text-white font-semibold py-2 px-4 rounded inline-flex items-center transition duration-150"
@@ -313,318 +265,148 @@ const ProjectsPage = () => {
         </button>
       </div>
 
-      <div className="bg-white shadow-md rounded-lg overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-              >
-                Project Name
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-              >
-                Email
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-              >
-                Developers
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-              >
-                Tasks
-              </th>
-              <th
-                scope="col"
-                className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider"
-              >
-                Status
-              </th>
-              <th scope="col" className="relative px-6 py-3">
-                <span className="sr-only">Actions</span>
-              </th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {projects.length === 0 && !isLoading && (
-              <tr>
-                <td
-                  colSpan={6}
-                  className="px-6 py-12 text-center text-gray-500"
-                >
-                  No projects found.
-                  {isModalOpen ? "" : " Click 'Create New Project' to add one."}
-                </td>
-              </tr>
-            )}
-            {projects.map((project) => (
-              <tr
-                key={project.id}
-                className="hover:bg-gray-50 transition duration-150"
-              >
-                <td className="px-6 py-4 whitespace-nowrap text-left">
-                  <div className="text-sm font-medium text-gray-900">
-                    {project.name}
-                  </div>
-                  <div className="text-xs text-gray-500">ID: {project.id}</div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-left">
-                  {project.email ? (
-                    <a
-                      href={`mailto:${project.email}`}
-                      className="text-sm text-indigo-600 hover:text-indigo-900 flex items-center"
-                    >
-                      <HiOutlineMail className="h-4 w-4 mr-1.5" />{" "}
-                      {project.email}
-                    </a>
-                  ) : (
-                    <span className="text-sm text-gray-500">N/A</span>
-                  )}
-                  <div className="text-xs text-gray-500 mt-1">
-                    {project.send_email
-                      ? "Email notifications on"
-                      : "Email notifications off"}
-                  </div>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-left">
-                  {project.developers.length > 0 ? (
-                    <div className="flex items-center">
-                      <HiOutlineUserGroup className="h-4 w-4 mr-1.5 text-gray-500" />
-                      {project.developers
-                        .map((dev) => dev.full_name)
-                        .join(", ")}{" "}
-                      ({project.developers.length})
-                    </div>
-                  ) : (
-                    <span className="text-xs text-gray-500">No developers</span>
-                  )}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700 text-left">
-                  {project.tasks.length} task(s)
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-left">
-                  <span
-                    className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusClass(
-                      project.archived
-                    )}`}
-                  >
-                    {project.archived ? "Archived" : "Active"}
-                  </span>
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                  <button
-                    onClick={() => alert(`View ${project.name} - TBD`)}
-                    className="text-[#002F41] hover:text-[#004057] mr-2 p-1 rounded hover:bg-gray-200 transition duration-150"
-                    title="View Project"
-                  >
-                    <HiOutlineEye className="h-5 w-5" />
-                  </button>
-                  <button
-                    onClick={() => openEditModal(project)}
-                    className="text-indigo-600 hover:text-indigo-900 mr-2 p-1 rounded hover:bg-gray-200 transition duration-150"
-                    title="Edit Project"
-                  >
-                    <HiOutlinePencil className="h-5 w-5" />
-                  </button>
-                  <button
-                    onClick={() =>
-                      handleDeleteProject(project.id, project.name)
-                    }
-                    className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-gray-200 transition duration-150"
-                    title="Delete Project"
-                  >
-                    <HiOutlineTrash className="h-5 w-5" />
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+      {error && <div className="text-red-600 bg-red-100 p-3 rounded">{error}</div>}
 
-      {error && (
-        <div className="p-3 bg-red-100 text-red-700 rounded-md">
-          Error creating project: {error}. Some data might be stale.
-        </div>
-      )}
+      <DataTable
+        columns={columns}
+        data={projects}
+        pagination={pagination}
+        onPageChange={handlePageChange}
+        isLoading={isLoading}
+      />
 
+      {/* Create/Edit Modal */}
       <Modal
-        isOpen={isModalOpen}
-        onClose={closeModal}
-        title="Create New Project"
+        isOpen={isModalOpen || isEditModalOpen}
+        onClose={isEditModalOpen ? closeEditModal : closeModal}
+        title={isEditModalOpen ? "Edit Project" : "Create New Project"}
       >
-        <form onSubmit={handleCreateProject} className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <div>
-            <label
-              htmlFor="projectName"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Project Name <span className="text-red-500">*</span>
-            </label>
+            <label className="block text-sm font-medium text-gray-700">Project Name *</label>
             <input
               type="text"
-              id="projectName"
-              value={newProjectName}
-              onChange={(e) => setNewProjectName(e.target.value)}
+              name="name"
+              value={formData.name}
+              onChange={handleInputChange}
               required
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              className="mt-1 block w-full input-standard p-2 border rounded"
             />
           </div>
           <div>
-            <label
-              htmlFor="projectEmail"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Client Email (Optional)
-            </label>
+            <label className="block text-sm font-medium text-gray-700">Email (Optional)</label>
             <input
               type="email"
-              id="projectEmail"
-              value={newProjectEmail}
-              onChange={(e) => setNewProjectEmail(e.target.value)}
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              name="email"
+              value={formData.email}
+              onChange={handleInputChange}
+              className="mt-1 block w-full input-standard p-2 border rounded"
             />
           </div>
           <div className="flex items-center">
             <input
-              id="sendEmail"
               type="checkbox"
-              checked={newProjectSendEmail}
-              onChange={(e) => setNewProjectSendEmail(e.target.checked)}
-              className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+              name="send_email"
+              checked={formData.send_email}
+              onChange={handleInputChange}
+              className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
             />
-            <label
-              htmlFor="sendEmail"
-              className="ml-2 block text-sm text-gray-900"
-            >
-              Send Email Notifications
-            </label>
+            <label className="ml-2 block text-sm text-gray-900">Send Email Notifications</label>
           </div>
           <div className="flex items-center">
             <input
-              id="archived"
               type="checkbox"
-              checked={newProjectArchived}
-              onChange={(e) => setNewProjectArchived(e.target.checked)}
-              className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
+              name="archived"
+              checked={formData.archived}
+              onChange={handleInputChange}
+              className="h-4 w-4 text-indigo-600 border-gray-300 rounded"
             />
-            <label
-              htmlFor="archived"
-              className="ml-2 block text-sm text-gray-900"
-            >
-              Archive this project
-            </label>
+            <label className="ml-2 block text-sm text-gray-900">Archived</label>
           </div>
-          <div className="flex justify-end space-x-3 pt-2">
+          <div className="flex justify-end space-x-3 pt-4">
             <button
               type="button"
-              onClick={closeModal}
-              className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+              onClick={isEditModalOpen ? closeEditModal : closeModal}
+              className="px-4 py-2 text-sm font-medium text-gray-700 bg-gray-100 hover:bg-gray-200 rounded-md"
             >
               Cancel
             </button>
             <button
               type="submit"
-              className="px-4 py-2 text-sm font-medium text-white bg-[#002F41] border border-transparent rounded-md shadow-sm hover:bg-[#004057] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#00283a]"
+              className="px-4 py-2 text-sm font-medium text-white bg-[#002F41] hover:bg-[#004057] rounded-md"
             >
-              Create Project
+              {isEditModalOpen ? "Save Changes" : "Create Project"}
             </button>
           </div>
         </form>
       </Modal>
 
-      {editingProject && (
-        <Modal
-          isOpen={isEditModalOpen}
-          onClose={closeEditModal}
-          title={`Edit Project: ${editingProject.name}`}
-        >
-          <form onSubmit={handleUpdateProject} className="space-y-4">
-            <div>
-              <label
-                htmlFor="editProjectName"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Project Name <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                id="editProjectName"
-                value={editProjectName}
-                onChange={(e) => setEditProjectName(e.target.value)}
-                required
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              />
-            </div>
-            <div>
-              <label
-                htmlFor="editProjectEmail"
-                className="block text-sm font-medium text-gray-700"
-              >
-                Client Email (Optional)
-              </label>
-              <input
-                type="email"
-                id="editProjectEmail"
-                value={editProjectEmail}
-                onChange={(e) => setEditProjectEmail(e.target.value)}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              />
-            </div>
-            <div className="flex items-center">
-              <input
-                id="editSendEmail"
-                type="checkbox"
-                checked={editProjectSendEmail}
-                onChange={(e) => setEditProjectSendEmail(e.target.checked)}
-                className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-              />
-              <label
-                htmlFor="editSendEmail"
-                className="ml-2 block text-sm text-gray-900"
-              >
-                Send Email Notifications
-              </label>
-            </div>
-            <div className="flex items-center">
-              <input
-                id="editArchived"
-                type="checkbox"
-                checked={editProjectArchived}
-                onChange={(e) => setEditProjectArchived(e.target.checked)}
-                className="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500"
-              />
-              <label
-                htmlFor="editArchived"
-                className="ml-2 block text-sm text-gray-900"
-              >
-                Archive this project
-              </label>
-            </div>
-            <div className="flex justify-end space-x-3 pt-2">
-              <button
-                type="button"
-                onClick={closeEditModal}
-                className="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md shadow-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 text-sm font-medium text-white bg-[#002F41] border border-transparent rounded-md shadow-sm hover:bg-[#004057] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#00283a]"
-              >
-                Save Changes
-              </button>
-            </div>
-          </form>
-        </Modal>
+      {/* View Modal */}
+      {viewingProject && (
+          <div className={`fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden bg-gray-500 bg-opacity-75 p-4 sm:p-6 transition-opacity ${isViewModalOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
+              <div className="relative w-full max-w-3xl transform rounded-lg bg-white shadow-xl transition-all">
+                  <div className="flex items-center justify-between border-b px-4 py-3">
+                      <h3 className="text-lg font-medium leading-6 text-gray-900">Project Details: {viewingProject.name}</h3>
+                      <button onClick={closeViewModal} className="text-gray-400 hover:text-gray-500">
+                          <HiX className="h-6 w-6" />
+                      </button>
+                  </div>
+                  <div className="p-6 space-y-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          <div>
+                              <h4 className="text-sm font-medium text-gray-500">Contact Email</h4>
+                              <p className="mt-1 text-sm text-gray-900">{viewingProject.email || "N/A"}</p>
+                          </div>
+                          <div>
+                              <h4 className="text-sm font-medium text-gray-500">Status</h4>
+                              <p className="mt-1 text-sm text-gray-900">{viewingProject.archived ? "Archived" : "Active"}</p>
+                          </div>
+                      </div>
+
+                      <div>
+                          <h4 className="text-sm font-medium text-gray-500 mb-2">Team Members ({viewingProject.developers?.length || 0})</h4>
+                          <ul className="divide-y divide-gray-200 bg-gray-50 rounded-md border border-gray-200">
+                              {viewingProject.developers?.length === 0 && <li className="p-3 text-sm text-gray-500">No developers assigned.</li>}
+                              {viewingProject.developers?.map(dev => (
+                                  <li key={dev.id} className="p-3 text-sm flex justify-between">
+                                      <span>{dev.full_name}</span>
+                                      <span className="text-gray-400 text-xs">{dev.email}</span>
+                                  </li>
+                              ))}
+                          </ul>
+                      </div>
+
+                      <div>
+                          <h4 className="text-sm font-medium text-gray-500 mb-2">Tasks ({viewingProject.tasks?.length || 0})</h4>
+                          <div className="max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-gray-50">
+                            <ul className="divide-y divide-gray-200">
+                                {viewingProject.tasks?.length === 0 && <li className="p-3 text-sm text-gray-500">No tasks found.</li>}
+                                {viewingProject.tasks?.map(task => (
+                                    <li key={task.id} className="p-3 text-sm flex justify-between items-center">
+                                        <div>
+                                            <p className="font-medium">{task.title}</p>
+                                            <p className="text-xs text-gray-500">{task.status}</p>
+                                        </div>
+                                        <div className="text-xs text-gray-500">
+                                            {task.hours_worked} / {task.hours_required} hrs
+                                        </div>
+                                    </li>
+                                ))}
+                            </ul>
+                          </div>
+                      </div>
+                  </div>
+                  <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 rounded-b-lg">
+                      <button
+                          type="button"
+                          onClick={closeViewModal}
+                          className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"
+                      >
+                          Close
+                      </button>
+                  </div>
+              </div>
+          </div>
       )}
     </div>
   );
