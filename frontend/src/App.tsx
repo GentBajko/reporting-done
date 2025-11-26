@@ -7,7 +7,6 @@ import {
   HiOutlineHome,
   HiOutlineLogin,
   HiOutlineLogout,
-  HiOutlineMenu,
   HiOutlineUserCircle,
   HiOutlineUsers,
 } from "react-icons/hi";
@@ -18,7 +17,6 @@ import {
   Route,
   NavLink as RouterNavLink,
   Routes,
-  useLocation,
   useNavigate,
 } from "react-router-dom";
 import "./App.css";
@@ -197,18 +195,8 @@ const NavLink = ({
   );
 };
 
-const getPageTitle = (pathname: string): string => {
-  if (pathname === "/") return "Dashboard";
-  const segments = pathname.split("/").filter(Boolean);
-  if (segments.length === 0) return "Dashboard";
-  const title = segments[segments.length - 1];
-  return title.charAt(0).toUpperCase() + title.slice(1);
-};
-
 const Layout = () => {
   const { isLoggedIn, isAdmin, user, isLoadingAuth } = useAuth();
-  const location = useLocation();
-  const pageTitle = getPageTitle(location.pathname);
 
   if (isLoadingAuth) {
     return (
@@ -221,6 +209,8 @@ const Layout = () => {
   if (!isLoggedIn) {
     return <Navigate to="/user/login" replace />;
   }
+
+  const displayName = user?.full_name || (isAdmin ? "Admin" : "User");
 
   return (
     <div className="flex h-screen w-screen bg-gray-100 overflow-x-hidden">
@@ -261,7 +251,7 @@ const Layout = () => {
         </nav>
         <div className="p-3 border-t border-gray-700 space-y-1">
           <NavLink to="/profile" icon={HiOutlineUserCircle}>
-            Profile
+            {displayName}
           </NavLink>
           <NavLink to="/user/logout" icon={HiOutlineLogout}>
             Logout
@@ -269,33 +259,9 @@ const Layout = () => {
         </div>
       </div>
       <div className="flex-1 flex flex-col overflow-hidden">
-        <header className="bg-white shadow-sm p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center">
-              <button className="text-gray-500 mr-3 md:hidden">
-                <HiOutlineMenu className="h-6 w-6" />
-              </button>
-              <h1 className="text-xl font-semibold text-gray-800">
-                {pageTitle}
-              </h1>
-            </div>
-            <div className="flex items-center space-x-3">
-              <Link
-                to="/profile"
-                className="text-sm text-gray-600 hover:text-indigo-600 hover:underline"
-              >
-                Welcome,{" "}
-                {user?.full_name ? user.full_name : isAdmin ? "Admin" : "User"}
-              </Link>
-              <div className="w-8 h-8 bg-gray-300 rounded-full flex items-center justify-center text-gray-600">
-                {isAdmin ? "A" : "U"}
-              </div>
-            </div>
-          </div>
-        </header>
         <main
           id="main-content"
-          className="flex-1 p-6 overflow-y-auto bg-gray-50"
+          className="flex-1 overflow-y-auto bg-gray-50"
         >
           <Outlet />
         </main>

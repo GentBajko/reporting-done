@@ -1,19 +1,21 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   HiOutlineClock,
   HiOutlineCollection,
+  HiOutlineFilter,
   HiOutlinePencil,
   HiOutlineRefresh,
+  HiOutlineSearch,
   HiOutlineTrash,
-  HiPlus,
-  HiOutlineInformationCircle,
+  HiChevronDown,
+  HiChevronUp,
   HiX
 } from "react-icons/hi";
+import { useApi } from "../hooks/useApi";
+import type { Log, PaginatedResponse, Pagination, Project, Task, User } from "../types";
 import Modal from "./Modal";
 import DataTable from "./common/DataTable";
-import SearchFilter from "./common/SearchFilter";
-import { useApi } from "../hooks/useApi";
-import type { Task, Project, User, Pagination, Log, PaginatedResponse } from "../types";
+import FloatingActionButton from "./common/FloatingActionButton";
 
 const TasksPage = () => {
   const { request } = useApi();
@@ -43,7 +45,36 @@ const TasksPage = () => {
     status: "To Do",
   });
 
-  const fetchTasks = async (page: number = 1, search: string = "") => {
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [projectFilter, setProjectFilter] = useState<string>("all");
+  const [returnedFilter, setReturnedFilter] = useState<string>("all");
+  const [userFilter, setUserFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  const [hoursProgressFilter, setHoursProgressFilter] = useState<string>("all");
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+
+  const activeFiltersCount = [
+      statusFilter !== "all",
+      projectFilter !== "all",
+      userFilter !== "all",
+      returnedFilter !== "all",
+      hoursProgressFilter !== "all",
+      dateFrom !== "",
+      dateTo !== ""
+  ].filter(Boolean).length;
+
+  const fetchTasks = async (
+    page: number = 1, 
+    search: string = "", 
+    status: string = "all", 
+    project: string = "all", 
+    user: string = "all", 
+    returned: string = "all",
+    fromDate: string = "",
+    toDate: string = "",
+    hoursProgress: string = "all"
+  ) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -53,6 +84,34 @@ const TasksPage = () => {
         });
         if (search) {
              queryParams.append("title", search); 
+        }
+        if (status !== "all") {
+            const statusMap: Record<string, string> = {
+                "todo": "To Do",
+                "inprogress": "In Progress",
+                "done": "Done"
+            };
+            queryParams.append("status", statusMap[status] || status);
+        }
+        if (project !== "all") {
+            queryParams.append("project_id", project);
+        }
+        if (user !== "all") {
+            queryParams.append("user_id", user);
+        }
+        if (returned !== "all") {
+            queryParams.append("returned", (returned === "returned").toString());
+        }
+        if (fromDate) {
+            const fromTimestamp = Math.floor(new Date(fromDate).getTime() / 1000);
+            queryParams.append("date_from", fromTimestamp.toString());
+        }
+        if (toDate) {
+            const toTimestamp = Math.floor(new Date(toDate + "T23:59:59").getTime() / 1000);
+            queryParams.append("date_to", toTimestamp.toString());
+        }
+        if (hoursProgress !== "all") {
+            queryParams.append("hours_progress", hoursProgress);
         }
 
         const response = await request<PaginatedResponse<Task>>(`/task/?${queryParams.toString()}`);
@@ -79,13 +138,10 @@ const TasksPage = () => {
 
   const fetchOptions = async () => {
       try {
-          // Fetching all projects and users for dropdowns. 
-          // In a large system this should be paginated or searchable dropdowns.
-          // For now fetching first page or assuming backend returns all if limit is high.
           const projRes = await request<any>('/project/?limit=100');
           const userRes = await request<any>('/user/?limit=100');
           
-          if (Array.isArray(projRes)) setProjects(projRes); // handling the non-paginated fallback or tuple if logic matches
+          if (Array.isArray(projRes)) setProjects(projRes);
           else if (projRes.items) setProjects(projRes.items);
           else if (Array.isArray(projRes[0])) setProjects(projRes[0]);
 
@@ -99,14 +155,12 @@ const TasksPage = () => {
   };
 
   useEffect(() => {
-    fetchTasks(currentPage, searchQuery);
-  }, [currentPage, searchQuery]);
+    fetchOptions();
+  }, []);
 
   useEffect(() => {
-      if (isModalOpen || isEditModalOpen) {
-          fetchOptions();
-      }
-  }, [isModalOpen, isEditModalOpen]);
+    fetchTasks(currentPage, searchQuery, statusFilter, projectFilter, userFilter, returnedFilter, dateFrom, dateTo, hoursProgressFilter);
+  }, [currentPage, searchQuery, statusFilter, projectFilter, userFilter, returnedFilter, dateFrom, dateTo, hoursProgressFilter]);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -296,28 +350,171 @@ const TasksPage = () => {
     },
   ];
 
+  const filteredTasks = tasks;
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-        <SearchFilter value={searchQuery} onChange={setSearchQuery} placeholder="Search tasks..." />
-        <button
-          onClick={openModal}
-          className="bg-[#002F41] hover:bg-[#004057] text-white font-semibold py-2 px-4 rounded inline-flex items-center transition duration-150"
-        >
-          <HiPlus className="mr-2 h-5 w-5" />
-          Create New Task
-        </button>
+    <div className="flex flex-col h-full bg-gray-50">
+      <div className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="px-6 py-4">
+          <div className="flex flex-col bg-gray-50 p-4 rounded-lg border border-gray-200 gap-4">
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div className="relative flex-1 min-w-[240px]">
+                    <HiOutlineSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <input
+                        type="text"
+                        placeholder="Search by title..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#002F41] focus:border-[#002F41] outline-none transition-colors bg-white"
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                    <button
+                        onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
+                            isFiltersOpen || activeFiltersCount > 0
+                            ? "border-[#002F41] text-[#002F41] bg-white" 
+                            : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
+                        }`}
+                    >
+                        <HiOutlineFilter className="h-5 w-5" />
+                        <span>Filters</span>
+                        {activeFiltersCount > 0 && (
+                            <span className="flex items-center justify-center w-5 h-5 text-xs text-white bg-[#002F41] rounded-full">
+                                {activeFiltersCount}
+                            </span>
+                        )}
+                        {isFiltersOpen ? <HiChevronUp className="h-4 w-4" /> : <HiChevronDown className="h-4 w-4" />}
+                    </button>
+                    {(activeFiltersCount > 0 || searchQuery) && (
+                         <button 
+                            onClick={() => {
+                                setSearchQuery("");
+                                setStatusFilter("all");
+                                setProjectFilter("all");
+                                setUserFilter("all");
+                                setReturnedFilter("all");
+                                setDateFrom("");
+                                setDateTo("");
+                                setHoursProgressFilter("all");
+                            }}
+                            className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2"
+                        >
+                            Reset
+                        </button>
+                    )}
+                </div>
+            </div>
+            
+            {isFiltersOpen && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2 border-t border-gray-200">
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-500 uppercase">Status</label>
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                        >
+                            <option value="all">All Statuses</option>
+                            <option value="todo">To Do</option>
+                            <option value="inprogress">In Progress</option>
+                            <option value="done">Done</option>
+                        </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-500 uppercase">Project</label>
+                        <select
+                            value={projectFilter}
+                            onChange={(e) => setProjectFilter(e.target.value)}
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                        >
+                            <option value="all">All Projects</option>
+                            {projects.map(proj => (
+                                <option key={proj.id} value={proj.id}>{proj.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-500 uppercase">Assigned To</label>
+                        <select
+                            value={userFilter}
+                            onChange={(e) => setUserFilter(e.target.value)}
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                        >
+                            <option value="all">All Users</option>
+                            {users.map(u => (
+                                <option key={u.id} value={u.id}>{u.full_name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-500 uppercase">Returned</label>
+                        <select
+                            value={returnedFilter}
+                            onChange={(e) => setReturnedFilter(e.target.value)}
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                        >
+                            <option value="all">Any</option>
+                            <option value="returned">Returned</option>
+                            <option value="notreturned">Not Returned</option>
+                        </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-500 uppercase">Progress</label>
+                        <select
+                            value={hoursProgressFilter}
+                            onChange={(e) => setHoursProgressFilter(e.target.value)}
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                        >
+                            <option value="all">Any</option>
+                            <option value="not_started">Not Started</option>
+                            <option value="on_track">On Track</option>
+                            <option value="overdue">Overdue</option>
+                        </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-500 uppercase">From Date</label>
+                        <input
+                            type="date"
+                            value={dateFrom}
+                            onChange={(e) => setDateFrom(e.target.value)}
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                        />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-500 uppercase">To Date</label>
+                        <input
+                            type="date"
+                            value={dateTo}
+                            onChange={(e) => setDateTo(e.target.value)}
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                        />
+                    </div>
+                </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {error && <div className="text-red-600 bg-red-100 p-3 rounded">{error}</div>}
+      {error && <div className="text-red-600 bg-red-100 p-4 border-b border-red-200">{error}</div>}
 
-      <DataTable
-        columns={columns}
-        data={tasks}
-        pagination={pagination}
-        onPageChange={handlePageChange}
-        isLoading={isLoading}
-      />
+      <div className="flex-1 overflow-auto">
+        <DataTable
+          columns={columns}
+          data={filteredTasks}
+          pagination={pagination}
+          onPageChange={handlePageChange}
+          isLoading={isLoading}
+        />
+      </div>
+
+      <FloatingActionButton onClick={openModal} title="Create New Task" />
 
       {/* Create/Edit Modal */}
       <Modal
@@ -425,15 +622,15 @@ const TasksPage = () => {
 
        {/* Logs Modal */}
        {isLogsModalOpen && currentTaskForLogs && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden bg-gray-500 bg-opacity-75 p-4 sm:p-6">
-            <div className="relative w-full max-w-3xl transform rounded-lg bg-white shadow-xl">
-                <div className="flex items-center justify-between border-b px-4 py-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-gray-500 bg-opacity-75 p-4 sm:p-6">
+            <div className="relative w-full max-w-3xl max-h-[85vh] flex flex-col transform rounded-lg bg-white shadow-xl">
+                <div className="flex items-center justify-between border-b px-4 py-3 flex-shrink-0">
                     <h3 className="text-lg font-medium leading-6 text-gray-900">Logs for: {currentTaskForLogs.title}</h3>
                     <button onClick={closeLogsModal} className="text-gray-400 hover:text-gray-500">
                         <HiX className="h-6 w-6" />
                     </button>
                 </div>
-                <div className="p-6 max-h-96 overflow-y-auto">
+                <div className="p-6 overflow-y-auto flex-1">
                      {taskLogs.length === 0 ? (
                          <p className="text-gray-500 text-center py-4">No logs found for this task.</p>
                      ) : (
@@ -458,7 +655,7 @@ const TasksPage = () => {
                          </ul>
                      )}
                 </div>
-                <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 rounded-b-lg">
+                <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 rounded-b-lg flex-shrink-0">
                     <button
                         onClick={closeLogsModal}
                         className="mt-3 inline-flex w-full justify-center rounded-md bg-white px-3 py-2 text-sm font-semibold text-gray-900 shadow-sm ring-1 ring-inset ring-gray-300 hover:bg-gray-50 sm:mt-0 sm:w-auto"

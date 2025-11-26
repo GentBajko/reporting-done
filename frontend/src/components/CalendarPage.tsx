@@ -1,13 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  HiCalendar,
   HiChevronLeft,
-  HiChevronRight,
-  HiPlus,
+  HiChevronRight
 } from "react-icons/hi";
 import { useAuth } from "../contexts/AuthContext";
 import { useApi } from "../hooks/useApi";
 import Modal from "./Modal";
+import FloatingActionButton from "./common/FloatingActionButton";
 import { ToastContainer, useToast } from "./common/Toast";
 
 interface BackendDailyAvailability {
@@ -339,53 +338,56 @@ const CalendarPage = () => {
   };
 
   return (
-    <div className="space-y-6 p-4 md:p-6 bg-gray-50 min-h-screen">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h1 className="text-2xl font-semibold text-gray-800 flex items-center">
-          <HiCalendar className="mr-3 h-7 w-7 text-[#002F41]" />
-          Calendar
-        </h1>
-        <button
-          onClick={() => openModal()}
-          className="bg-[#002F41] hover:bg-[#004057] text-white font-semibold py-2 px-4 rounded-lg inline-flex items-center transition duration-150 shadow-md"
-        >
-          <HiPlus className="mr-2 h-5 w-5" />
-          Add Event
-        </button>
+    <div className="flex flex-col h-full bg-gray-50">
+      {/* Header moved to App layout */}
+      
+      <div className="bg-white border-b border-gray-200 flex-none">
+        <div className="flex justify-between items-center p-2">
+          <div className="flex items-center space-x-2">
+             <button
+                onClick={() => changeMonth(-1)}
+                className="p-1.5 rounded hover:bg-gray-100 transition text-[#002F41]"
+                aria-label="Previous month"
+              >
+                <HiChevronLeft className="h-5 w-5" />
+              </button>
+              <h2 className="text-md font-semibold text-gray-700">
+                {currentDisplayDate.toLocaleString("default", {
+                  month: "long",
+                  year: "numeric",
+                })}
+              </h2>
+              <button
+                onClick={() => changeMonth(1)}
+                className="p-1.5 rounded hover:bg-gray-100 transition text-[#002F41]"
+                aria-label="Next month"
+              >
+                <HiChevronRight className="h-5 w-5" />
+              </button>
+              <button
+                onClick={goToToday}
+                className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border border-gray-300 text-gray-600 transition ml-2"
+              >
+                Today
+              </button>
+          </div>
+        </div>
+        
+        {/* Grid Header */}
+        <div className="grid grid-cols-7 gap-px border-t border-gray-200 bg-gray-100">
+            {daysOfWeekHeaders.map((day) => (
+            <div
+                key={day}
+                className="text-center py-1 text-[10px] font-semibold text-gray-500 uppercase bg-gray-50"
+            >
+                {day}
+            </div>
+            ))}
+        </div>
       </div>
 
-      <div className="bg-white shadow-xl rounded-lg p-6 md:p-8">
-        <div className="flex justify-between items-center mb-6">
-          <button
-            onClick={() => changeMonth(-1)}
-            className="p-2 rounded-md hover:bg-gray-200 transition text-[#002F41]"
-            aria-label="Previous month"
-          >
-            <HiChevronLeft className="h-6 w-6" />
-          </button>
-          <div className="flex items-center gap-4">
-            <h2 className="text-xl font-semibold text-gray-700">
-              {currentDisplayDate.toLocaleString("default", {
-                month: "long",
-                year: "numeric",
-              })}
-            </h2>
-            <button
-              onClick={goToToday}
-              className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition"
-            >
-              Today
-            </button>
-          </div>
-          <button
-            onClick={() => changeMonth(1)}
-            className="p-2 rounded-md hover:bg-gray-200 transition text-[#002F41]"
-            aria-label="Next month"
-          >
-            <HiChevronRight className="h-6 w-6" />
-          </button>
-        </div>
-
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto">
         {isLoading && (
           <div className="flex items-center justify-center py-16">
             <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#002F41]"></div>
@@ -394,198 +396,188 @@ const CalendarPage = () => {
         )}
 
         {error && (
-          <p className="text-red-600 bg-red-100 p-3 rounded-md text-center">
+          <p className="text-red-600 bg-red-100 p-3 text-center m-2">
             Error: {error}
           </p>
         )}
 
         {!isLoading && !error && (
-          <div className="grid grid-cols-7 gap-px border border-gray-200 bg-gray-200 rounded-lg overflow-hidden">
-            {daysOfWeekHeaders.map((day) => (
-              <div
-                key={day}
-                className="text-center py-3 text-xs font-semibold text-gray-600 uppercase bg-gray-100"
-              >
-                {day}
-              </div>
-            ))}
-            {calendarDays.map((day) => {
-              const hasEvents = day.events.length > 0;
-              const isSelected =
-                selectedDay?.dateKey === day.dateKey && day.isCurrentMonth;
+          <>
+            <div className="grid grid-cols-7 gap-px border-b border-gray-200 bg-gray-200">
+                {calendarDays.map((day) => {
+                const hasEvents = day.events.length > 0;
+                const isSelected =
+                    selectedDay?.dateKey === day.dateKey && day.isCurrentMonth;
 
-              return (
-                <div
-                  key={day.dateKey}
-                  onClick={() => handleDayClick(day)}
-                  className={`
-                    min-h-[90px] md:min-h-[110px] p-1.5 relative cursor-pointer transition-all duration-150 bg-white
-                    ${!day.isCurrentMonth ? "bg-gray-50 text-gray-400" : ""}
-                    ${day.isWeekend && day.isCurrentMonth ? "bg-gray-50/50" : ""}
-                    ${day.isToday ? "ring-2 ring-inset ring-[#002F41]" : ""}
-                    ${isSelected ? "bg-indigo-50" : ""}
-                    ${day.isCurrentMonth ? "hover:bg-indigo-50/50" : ""}
-                  `}
-                >
-                  <span
+                return (
+                    <div
+                    key={day.dateKey}
+                    onClick={() => handleDayClick(day)}
                     className={`
-                      inline-flex items-center justify-center w-7 h-7 text-sm rounded-full
-                      ${day.isToday ? "bg-[#002F41] text-white font-bold" : ""}
-                      ${!day.isCurrentMonth ? "text-gray-400" : "text-gray-700"}
+                        min-h-[80px] md:min-h-[100px] p-1 relative cursor-pointer transition-all duration-150 bg-white flex flex-col
+                        ${!day.isCurrentMonth ? "bg-gray-50 text-gray-400" : ""}
+                        ${day.isWeekend && day.isCurrentMonth ? "bg-gray-50/30" : ""}
+                        ${day.isToday ? "ring-1 ring-inset ring-[#002F41]" : ""}
+                        ${isSelected ? "bg-indigo-50" : ""}
+                        ${day.isCurrentMonth ? "hover:bg-gray-50" : ""}
                     `}
-                  >
-                    {day.date.getDate()}
-                  </span>
-
-                  {day.isCurrentMonth && hasEvents && (
-                    <div className="mt-1 space-y-0.5 overflow-hidden">
-                      {day.events.slice(0, 3).map((evt) => (
-                        <div
-                          key={evt.id}
-                          className={`text-[10px] px-1.5 py-0.5 rounded truncate ${getEventTypeColor(
-                            evt.type
-                          )}`}
-                          title={evt.title}
-                        >
-                          {evt.title}
-                        </div>
-                      ))}
-                      {day.events.length > 3 && (
-                        <div className="text-[10px] text-gray-500 px-1.5">
-                          +{day.events.length - 3} more
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        <div className="mt-6 flex flex-wrap gap-4 justify-center">
-          {[
-            "Meeting",
-            "Deadline",
-            "Reminder",
-            "Holiday",
-            "Task",
-            "Office",
-          ].map((type) => (
-            <div key={type} className="flex items-center gap-2 text-sm">
-              <div
-                className={`w-3 h-3 rounded-full ${getEventTypeDot(
-                  type as CalendarEvent["type"]
-                )}`}
-              />
-              <span className="text-gray-600">{type}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {selectedDay && selectedDay.isCurrentMonth && (
-        <div className="bg-white shadow-xl rounded-lg p-6">
-          <div className="flex justify-between items-center mb-4">
-            <h3 className="text-lg font-semibold text-gray-800">
-              {selectedDay.date.toLocaleDateString("default", {
-                weekday: "long",
-                month: "long",
-                day: "numeric",
-                year: "numeric",
-              })}
-            </h3>
-            <button
-              onClick={() => openModal(selectedDay.dateKey)}
-              className="text-sm px-3 py-1.5 bg-[#002F41] hover:bg-[#004057] text-white rounded-md transition flex items-center gap-1"
-            >
-              <HiPlus className="h-4 w-4" />
-              Add Event
-            </button>
-          </div>
-
-          {selectedDay.events.length === 0 ? (
-            <p className="text-gray-500 text-center py-8">
-              No events scheduled for this day.
-            </p>
-          ) : (
-            <ul className="space-y-3">
-              {selectedDay.events.map((evt) => (
-                <li
-                  key={evt.id}
-                  className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition"
-                >
-                  <div
-                    className={`w-3 h-3 rounded-full mt-1.5 flex-shrink-0 ${getEventTypeDot(
-                      evt.type
-                    )}`}
-                  />
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <h4 className="font-medium text-gray-800 truncate">
-                        {evt.title}
-                      </h4>
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full ${getEventTypeColor(
-                          evt.type
-                        )}`}
-                      >
-                        {evt.type}
-                      </span>
-                    </div>
-                    {evt.description && (
-                      <p className="text-sm text-gray-600 mt-1">
-                        {evt.description}
-                      </p>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-
-      <div className="bg-white shadow-xl rounded-lg p-6">
-        <h2 className="text-lg font-semibold text-gray-800 mb-4">
-          Upcoming Events
-        </h2>
-        {events.length === 0 ? (
-          <p className="text-gray-500 text-center py-8">
-            No events scheduled. Add some!
-          </p>
-        ) : (
-          <ul className="divide-y divide-gray-200">
-            {events.slice(0, 10).map((evt) => (
-              <li
-                key={evt.id}
-                className="py-3 flex items-start gap-3 hover:bg-gray-50 px-2 rounded transition"
-              >
-                <div
-                  className={`w-3 h-3 rounded-full mt-1.5 flex-shrink-0 ${getEventTypeDot(
-                    evt.type
-                  )}`}
-                />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center justify-between gap-2">
-                    <h4 className="font-medium text-gray-800 truncate">
-                      {evt.title}
-                    </h4>
-                    <span className="text-xs text-gray-500 whitespace-nowrap">
-                      {new Date(evt.date).toLocaleDateString("default", {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                      })}
+                    >
+                    <span
+                        className={`
+                        inline-flex items-center justify-center w-5 h-5 text-[10px] rounded-full mb-1
+                        ${day.isToday ? "bg-[#002F41] text-white font-bold" : ""}
+                        ${!day.isCurrentMonth ? "text-gray-400" : "text-gray-700"}
+                        `}
+                    >
+                        {day.date.getDate()}
                     </span>
-                  </div>
-                  <p className="text-xs text-gray-600">{evt.type}</p>
+
+                    {day.isCurrentMonth && hasEvents && (
+                        <div className="flex-1 overflow-hidden space-y-0.5">
+                        {day.events.slice(0, 3).map((evt) => (
+                            <div
+                            key={evt.id}
+                            className={`text-[9px] px-1 py-0.5 rounded truncate ${getEventTypeColor(
+                                evt.type
+                            )}`}
+                            title={evt.title}
+                            >
+                            {evt.title}
+                            </div>
+                        ))}
+                        {day.events.length > 3 && (
+                            <div className="text-[9px] text-gray-500 px-1">
+                            +{day.events.length - 3} more
+                            </div>
+                        )}
+                        </div>
+                    )}
+                    </div>
+                );
+                })}
+            </div>
+
+            <div className="p-2 bg-white border-b border-gray-200 flex flex-wrap gap-2 justify-center">
+                {[
+                    "Meeting",
+                    "Deadline",
+                    "Reminder",
+                    "Holiday",
+                    "Task",
+                    "Office",
+                ].map((type) => (
+                    <div key={type} className="flex items-center gap-1 text-[10px]">
+                    <div
+                        className={`w-2 h-2 rounded-full ${getEventTypeDot(
+                        type as CalendarEvent["type"]
+                        )}`}
+                    />
+                    <span className="text-gray-600">{type}</span>
+                    </div>
+                ))}
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-2">
+                {selectedDay && selectedDay.isCurrentMonth && (
+                <div className="bg-white border border-gray-200 p-3">
+                    <div className="flex justify-between items-center mb-2">
+                    <h3 className="text-sm font-semibold text-gray-800">
+                        {selectedDay.date.toLocaleDateString("default", {
+                        weekday: "long",
+                        month: "long",
+                        day: "numeric",
+                        year: "numeric",
+                        })}
+                    </h3>
+                    </div>
+
+                    {selectedDay.events.length === 0 ? (
+                    <p className="text-gray-500 text-center py-2 text-xs">
+                        No events.
+                    </p>
+                    ) : (
+                    <ul className="space-y-1">
+                        {selectedDay.events.map((evt) => (
+                        <li
+                            key={evt.id}
+                            className="flex items-start gap-2 p-1.5 rounded border border-gray-100 bg-gray-50"
+                        >
+                            <div
+                            className={`w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0 ${getEventTypeDot(
+                                evt.type
+                            )}`}
+                            />
+                            <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                                <h4 className="font-medium text-gray-800 truncate text-xs">
+                                {evt.title}
+                                </h4>
+                                <span
+                                className={`text-[9px] px-1 py-0 rounded-full ${getEventTypeColor(
+                                    evt.type
+                                )}`}
+                                >
+                                {evt.type}
+                                </span>
+                            </div>
+                            {evt.description && (
+                                <p className="text-[10px] text-gray-600 mt-0.5 truncate">
+                                {evt.description}
+                                </p>
+                            )}
+                            </div>
+                        </li>
+                        ))}
+                    </ul>
+                    )}
                 </div>
-              </li>
-            ))}
-          </ul>
+                )}
+
+                <div className="bg-white border border-gray-200 p-3">
+                <h2 className="text-sm font-semibold text-gray-800 mb-2">
+                    Upcoming
+                </h2>
+                {events.length === 0 ? (
+                    <p className="text-gray-500 text-center py-2 text-xs">
+                    No events scheduled.
+                    </p>
+                ) : (
+                    <ul className="divide-y divide-gray-100">
+                    {events.slice(0, 5).map((evt) => (
+                        <li
+                        key={evt.id}
+                        className="py-1.5 flex items-start gap-2 hover:bg-gray-50 px-1 rounded transition"
+                        >
+                        <div
+                            className={`w-1.5 h-1.5 rounded-full mt-1 flex-shrink-0 ${getEventTypeDot(
+                            evt.type
+                            )}`}
+                        />
+                        <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between gap-1">
+                            <h4 className="font-medium text-gray-800 truncate text-xs">
+                                {evt.title}
+                            </h4>
+                            <span className="text-[10px] text-gray-500 whitespace-nowrap">
+                                {new Date(evt.date).toLocaleDateString("default", {
+                                weekday: "short",
+                                month: "short",
+                                day: "numeric",
+                                })}
+                            </span>
+                            </div>
+                        </div>
+                        </li>
+                    ))}
+                    </ul>
+                )}
+                </div>
+            </div>
+          </>
         )}
       </div>
+      
+      <FloatingActionButton onClick={() => openModal()} title="Add Event" />
 
       <Modal isOpen={isModalOpen} onClose={closeModal} title="Add New Event">
         <form onSubmit={handleAddEvent} className="space-y-4">

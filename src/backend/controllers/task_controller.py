@@ -1,6 +1,6 @@
 from io import StringIO
 import csv
-from typing import Sequence
+from typing import Any, Sequence
 
 from fastapi import Query, Depends, APIRouter, HTTPException
 from pydantic import Field, BaseModel
@@ -99,6 +99,19 @@ def get_all_tasks_endpoint(
     sort: str | None = Query(None),
     order: str = Query("desc"),
     status: str | None = Query(None),
+    project_id: str | None = Query(None),
+    user_id: str | None = Query(None),
+    returned: bool | None = Query(None),
+    date_from: int | None = Query(
+        None, description="Unix timestamp for start date"
+    ),
+    date_to: int | None = Query(
+        None, description="Unix timestamp for end date"
+    ),
+    hours_progress: str | None = Query(
+        None,
+        description="Filter by hours progress: overdue, on_track, not_started",
+    ),
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
     task_service: TaskService = Depends(get_task_service),
@@ -110,15 +123,49 @@ def get_all_tasks_endpoint(
         sort_order=order,
     )
 
-    filters: dict[str, str] = {}
+    filters: dict[str, Any] = {}
     if status:
         filters["status"] = status
+    if project_id:
+        filters["project_id"] = project_id
+    if user_id:
+        filters["user_id"] = user_id
+    if returned is not None:
+        filters["returned"] = returned
+    if date_from is not None:
+        filters["timestamp__gte"] = date_from
+    if date_to is not None:
+        filters["timestamp__lte"] = date_to
 
     if is_admin(current_user):
         result = task_service.list_all(pagination, session, **filters)
     else:
         result = task_service.list_for_user(
             current_user.id, pagination, session, **filters
+        )
+
+    if hours_progress:
+        filtered_items = []
+        for task in result.items:
+            if (
+                hours_progress == "overdue"
+                and task.hours_worked > task.hours_required
+            ):
+                filtered_items.append(task)
+            elif (
+                hours_progress == "on_track"
+                and 0 < task.hours_worked <= task.hours_required
+            ):
+                filtered_items.append(task)
+            elif hours_progress == "not_started" and task.hours_worked == 0:
+                filtered_items.append(task)
+        return PaginatedTasksResponse(
+            items=filtered_items,
+            total=len(filtered_items),
+            page=result.page,
+            per_page=result.meta.per_page,
+            has_next=False,
+            has_prev=result.has_prev,
         )
 
     return PaginatedTasksResponse(

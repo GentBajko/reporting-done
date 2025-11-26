@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Sequence, Any
 
 from fastapi import Query, Depends, APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr, Field
@@ -77,6 +77,7 @@ def get_all_projects_endpoint(
     sort: str | None = Query(None),
     order: str = Query("asc"),
     archived: bool | None = Query(None),
+    send_email: bool | None = Query(None),
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
@@ -88,9 +89,11 @@ def get_all_projects_endpoint(
         sort_order=order,
     )
     
-    filters: dict[str, bool] = {}
+    filters: dict[str, Any] = {}
     if archived is not None:
         filters["archived"] = archived
+    if send_email is not None:
+        filters["send_email"] = send_email
     
     if is_admin(current_user):
         result = project_service.list_all(pagination, session, **filters)

@@ -33,7 +33,7 @@ export default defineConfig({
         target: "http://localhost:8000",
         changeOrigin: true,
       },
-      "/availability": {
+      "^/availability/": {
         target: "http://localhost:8000",
         changeOrigin: true,
       },

@@ -7,11 +7,11 @@ import {
   HiOutlineShieldCheck,
   HiOutlineTrash,
   HiOutlineUserCircle,
-  HiPlus,
   HiX
 } from "react-icons/hi";
 import Modal from "./Modal";
 import DataTable from "./common/DataTable";
+import FloatingActionButton from "./common/FloatingActionButton";
 import { useApi } from "../hooks/useApi";
 import type { User, PaginatedResponse, Pagination } from "../types";
 
@@ -275,18 +275,8 @@ const UsersPage = () => {
   ];
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-end">
-        <button
-          onClick={openModal}
-          className="bg-[#002F41] hover:bg-[#004057] text-white font-semibold py-2 px-4 rounded inline-flex items-center transition duration-150"
-        >
-          <HiPlus className="mr-2 h-5 w-5" />
-          Create New User
-        </button>
-      </div>
-
-      {error && <div className="text-red-600 bg-red-100 p-3 rounded">{error}</div>}
+    <div className="space-y-4">
+      {error && <div className="text-red-600 bg-red-100 p-3 rounded mx-2">{error}</div>}
 
       <DataTable
         columns={columns}
@@ -295,6 +285,8 @@ const UsersPage = () => {
         onPageChange={handlePageChange}
         isLoading={isLoading}
       />
+
+      <FloatingActionButton onClick={openModal} title="Create New User" />
 
       {/* Create/Edit Modal */}
       <Modal

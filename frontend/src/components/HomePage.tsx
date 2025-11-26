@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from "react";
 import {
-  HiOutlineArrowCircleRight,
   HiOutlineBriefcase,
   HiOutlineCalendar,
   HiOutlineClipboardList,
@@ -54,16 +53,16 @@ const StatCard = ({
 }) => {
   const content = (
     <div
-      className={`p-6 rounded-xl shadow-lg text-white ${bgColor} flex flex-col justify-between h-full`}
+      className={`p-8 rounded-xl shadow-lg text-white ${bgColor} flex flex-col justify-between h-full min-h-[280px]`}
     >
-      <div className="flex items-center justify-between mb-3">
-        <h3 className="text-lg font-semibold">{title}</h3>
-        <Icon className="h-8 w-8 opacity-80" />
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="text-xl font-semibold">{title}</h3>
+        <Icon className="h-10 w-10 opacity-80" />
       </div>
       {isLoading ? (
-        <div className="text-4xl font-bold mb-2 h-10 bg-white/30 animate-pulse rounded"></div>
+        <div className="text-5xl font-bold mb-3 h-12 bg-white/30 animate-pulse rounded"></div>
       ) : (
-        <p className="text-4xl font-bold mb-2">{value}</p>
+        <p className="text-5xl font-bold mb-3">{value}</p>
       )}
       {linkTo && (
         <div className="text-sm opacity-90 hover:opacity-100">
@@ -97,7 +96,7 @@ const QuickLinkButton = ({
   external?: boolean;
 }) => {
   const commonClasses =
-    "flex items-center justify-center space-x-2 w-full px-6 py-3.5 bg-white text-[#002F41] border border-gray-300 rounded-lg shadow-sm hover:shadow-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#00384d] transition-all duration-150 text-sm font-medium";
+    "flex items-center justify-center space-x-3 w-full px-6 py-5 bg-white text-[#002F41] border border-gray-300 rounded-lg shadow-sm hover:shadow-md hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#00384d] transition-all duration-150 text-base font-medium";
 
   if (external) {
     return (
@@ -163,12 +162,12 @@ const HomePage = () => {
   }
 
   return (
-    <div className="space-y-8">
-      <div className="p-6 bg-gradient-to-r from-[#002F41] to-[#004057] rounded-lg shadow-md text-white">
+    <div className="space-y-8 p-6">
+      <div className="p-8 bg-gradient-to-r from-[#002F41] to-[#004057] rounded-lg shadow-md text-white">
         <h1 className="text-3xl font-semibold">
           Welcome back, {user?.full_name || "User"}!
         </h1>
-        <p className="mt-2 text-gray-200">
+        <p className="mt-3 text-lg text-gray-200">
           Here's a quick overview of your workspace. Jump back in or explore
           other sections.
         </p>
@@ -232,10 +231,9 @@ const HomePage = () => {
             />
           )}
           <QuickLinkButton
-            to="https://businessdone.tech"
-            icon={HiOutlineArrowCircleRight}
-            label="BusinessDone Website"
-            external
+            to="/availability"
+            icon={HiOutlineCalendar}
+            label="Set Availability"
           />
         </div>
       </div>

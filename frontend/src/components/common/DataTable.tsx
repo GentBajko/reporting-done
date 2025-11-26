@@ -28,20 +28,26 @@ function DataTable<T extends { id: string | number }>({
 }: DataTableProps<T>) {
 
   if (isLoading) {
-    return <div className="p-8 text-center text-gray-500">Loading data...</div>;
+    return (
+      <div className="flex flex-col h-full">
+        <div className="flex-1 flex items-center justify-center">
+          <p className="text-gray-500 text-sm">Loading data...</p>
+        </div>
+      </div>
+    );
   }
 
   return (
-    <div className="flex flex-col bg-white shadow-md rounded-lg overflow-hidden">
-      <div className="overflow-x-auto">
+    <div className="flex flex-col h-full">
+      <div className="flex-1 overflow-auto">
         <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
+          <thead className="bg-gray-50 sticky top-0">
             <tr>
               {columns.map((col, idx) => (
                 <th
                   key={idx}
                   scope="col"
-                  className={`px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${col.className || ''}`}
+                  className={`px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider ${col.className || ''}`}
                 >
                   {col.header}
                 </th>
@@ -51,7 +57,7 @@ function DataTable<T extends { id: string | number }>({
           <tbody className="bg-white divide-y divide-gray-200">
             {data.length === 0 ? (
                <tr>
-                <td colSpan={columns.length} className="px-6 py-12 text-center text-gray-500">
+                <td colSpan={columns.length} className="px-3 py-8 text-center text-gray-500 text-sm">
                   {emptyMessage}
                 </td>
               </tr>
@@ -59,7 +65,7 @@ function DataTable<T extends { id: string | number }>({
               data.map((item) => (
                 <tr key={item.id} className="hover:bg-gray-50 transition duration-150">
                   {columns.map((col, idx) => (
-                    <td key={idx} className={`px-6 py-4 whitespace-nowrap text-sm text-gray-700 ${col.className || ''}`}>
+                    <td key={idx} className={`px-3 py-2 whitespace-nowrap text-sm text-gray-700 ${col.className || ''}`}>
                       {col.render
                         ? col.render(item)
                         : typeof col.accessor === 'function'
@@ -74,7 +80,9 @@ function DataTable<T extends { id: string | number }>({
         </table>
       </div>
       {pagination && onPageChange && (
-        <PaginationControls pagination={pagination} onPageChange={onPageChange} />
+        <div className="flex-shrink-0 border-t border-gray-200 bg-white">
+          <PaginationControls pagination={pagination} onPageChange={onPageChange} />
+        </div>
       )}
     </div>
   );

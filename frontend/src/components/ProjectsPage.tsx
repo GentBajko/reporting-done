@@ -1,19 +1,22 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
+  HiChevronDown,
+  HiChevronUp,
   HiOutlineClipboardList,
   HiOutlineEye,
+  HiOutlineFilter,
   HiOutlineMail,
   HiOutlinePencil,
+  HiOutlineSearch,
   HiOutlineTrash,
   HiOutlineUserGroup,
-  HiPlus,
   HiX
 } from "react-icons/hi";
 import { useApi } from "../hooks/useApi";
 import type { Pagination, Project } from "../types";
 import Modal from "./Modal";
 import DataTable from "./common/DataTable";
-import SearchFilter from "./common/SearchFilter";
+import FloatingActionButton from "./common/FloatingActionButton";
 
 const ProjectsPage = () => {
   const { request } = useApi();
@@ -38,7 +41,16 @@ const ProjectsPage = () => {
     archived: false,
   });
 
-  const fetchProjects = async (page: number = 1, search: string = "") => {
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [emailFilter, setEmailFilter] = useState<string>("all");
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+
+  const activeFiltersCount = [
+      statusFilter !== "all",
+      emailFilter !== "all",
+  ].filter(Boolean).length;
+
+  const fetchProjects = useCallback(async (page: number = 1, search: string = "", status: string = "all", email: string = "all") => {
     setIsLoading(true);
     setError(null);
     try {
@@ -47,18 +59,14 @@ const ProjectsPage = () => {
         limit: "10",
       });
       if (search) {
-        queryParams.append("name", search); // Assuming exact match for now, or backend handles it
+        queryParams.append("name", search);
       }
-      
-      // The backend currently returns [data, pagination] tuple or similar based on analysis? 
-      // Wait, look at get_all_projects in project_view.py:
-      // return output, pagination
-      // And it's an endpoint. Fastapi usually returns JSON. 
-      // If the return type is Tuple[List[Model], Pagination], FastAPI might serialize it as [list, pagination_dict].
-      // Let's check the previous ProjectsPage implementation... it expected `data: Project[] = await response.json()`.
-      // This implies the previous implementation MIGHT have been wrong about pagination if the backend WAS updated to return a tuple.
-      // OR the backend returns a list directly if no pagination wrapper model is used. 
-      // Let's look at project_controller.py to see the router definition.
+      if (status !== "all") {
+        queryParams.append("archived", (status === "archived").toString());
+      }
+      if (email !== "all") {
+        queryParams.append("send_email", (email === "with").toString());
+      }
       
       const response = await request<any>(`/project/?${queryParams.toString()}`);
       
@@ -73,7 +81,6 @@ const ProjectsPage = () => {
              has_prev: response.has_prev
           });
       } else if (Array.isArray(response)) {
-         // Legacy fallback if structure is different
          if (response.length === 2 && Array.isArray(response[0]) && 'total' in response[1]) {
              setProjects(response[0]);
              setPagination(response[1]);
@@ -90,11 +97,11 @@ const ProjectsPage = () => {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [request]);
 
   useEffect(() => {
-    fetchProjects(currentPage, searchQuery);
-  }, [currentPage, searchQuery]); // Debounce search in real app
+    fetchProjects(currentPage, searchQuery, statusFilter, emailFilter);
+  }, [fetchProjects, currentPage, searchQuery, statusFilter, emailFilter]);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -252,28 +259,104 @@ const ProjectsPage = () => {
     },
   ];
 
+  // Backend handles filtering now
+  const filteredProjects = projects;
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-        <SearchFilter value={searchQuery} onChange={setSearchQuery} placeholder="Search projects..." />
-        <button
-          onClick={openModal}
-          className="bg-[#002F41] hover:bg-[#004057] text-white font-semibold py-2 px-4 rounded inline-flex items-center transition duration-150"
-        >
-          <HiPlus className="mr-2 h-5 w-5" />
-          Create New Project
-        </button>
+    <div className="flex flex-col h-full bg-gray-50">
+      <div className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="px-6 py-4">
+          <div className="flex flex-col bg-gray-50 p-4 rounded-lg border border-gray-200 gap-4">
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
+                <div className="relative flex-1 min-w-[240px]">
+                    <HiOutlineSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+                    <input
+                        type="text"
+                        placeholder="Search by name..."
+                        value={searchQuery}
+                        onChange={(e) => setSearchQuery(e.target.value)}
+                        className="w-full pl-10 pr-4 py-2.5 text-sm text-gray-900 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#002F41] focus:border-[#002F41] outline-none transition-colors bg-white"
+                    />
+                </div>
+                <div className="flex items-center gap-2">
+                     <button
+                        onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
+                            isFiltersOpen || activeFiltersCount > 0
+                            ? "border-[#002F41] text-[#002F41] bg-white" 
+                            : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
+                        }`}
+                    >
+                        <HiOutlineFilter className="h-5 w-5" />
+                        <span>Filters</span>
+                        {activeFiltersCount > 0 && (
+                            <span className="flex items-center justify-center w-5 h-5 text-xs text-white bg-[#002F41] rounded-full">
+                                {activeFiltersCount}
+                            </span>
+                        )}
+                        {isFiltersOpen ? <HiChevronUp className="h-4 w-4" /> : <HiChevronDown className="h-4 w-4" />}
+                    </button>
+                    {(activeFiltersCount > 0 || searchQuery) && (
+                        <button 
+                            onClick={() => {
+                            setSearchQuery("");
+                            setStatusFilter("all");
+                            setEmailFilter("all");
+                            }}
+                            className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2"
+                        >
+                            Reset
+                        </button>
+                    )}
+                </div>
+            </div>
+            
+            {isFiltersOpen && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2 border-t border-gray-200">
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-500 uppercase">Status</label>
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                        >
+                            <option value="all">All</option>
+                            <option value="active">Active</option>
+                            <option value="archived">Archived</option>
+                        </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-500 uppercase">Email Notifications</label>
+                        <select
+                            value={emailFilter}
+                            onChange={(e) => setEmailFilter(e.target.value)}
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                        >
+                            <option value="all">All</option>
+                            <option value="with">Notifications On</option>
+                            <option value="without">Notifications Off</option>
+                        </select>
+                    </div>
+                </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {error && <div className="text-red-600 bg-red-100 p-3 rounded">{error}</div>}
+      {error && <div className="text-red-600 bg-red-100 p-4 border-b border-red-200">{error}</div>}
 
-      <DataTable
-        columns={columns}
-        data={projects}
-        pagination={pagination}
-        onPageChange={handlePageChange}
-        isLoading={isLoading}
-      />
+      <div className="flex-1 overflow-auto">
+        <DataTable
+          columns={columns}
+          data={filteredProjects}
+          pagination={pagination}
+          onPageChange={handlePageChange}
+          isLoading={isLoading}
+        />
+      </div>
+
+      <FloatingActionButton onClick={openModal} title="Create New Project" />
 
       {/* Create/Edit Modal */}
       <Modal
@@ -344,7 +427,7 @@ const ProjectsPage = () => {
       {/* View Modal */}
       {viewingProject && (
           <div className={`fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden bg-gray-500 bg-opacity-75 p-4 sm:p-6 transition-opacity ${isViewModalOpen ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
-              <div className="relative w-full max-w-3xl transform rounded-lg bg-white shadow-xl transition-all">
+              <div className="relative w-full max-w-5xl transform rounded-lg bg-white shadow-xl transition-all">
                   <div className="flex items-center justify-between border-b px-4 py-3">
                       <h3 className="text-lg font-medium leading-6 text-gray-900">Project Details: {viewingProject.name}</h3>
                       <button onClick={closeViewModal} className="text-gray-400 hover:text-gray-500">
@@ -365,35 +448,38 @@ const ProjectsPage = () => {
 
                       <div>
                           <h4 className="text-sm font-medium text-gray-500 mb-2">Team Members ({viewingProject.developers?.length || 0})</h4>
-                          <ul className="divide-y divide-gray-200 bg-gray-50 rounded-md border border-gray-200">
-                              {viewingProject.developers?.length === 0 && <li className="p-3 text-sm text-gray-500">No developers assigned.</li>}
+                          <div className="flex flex-wrap gap-2">
+                              {viewingProject.developers?.length === 0 && <p className="text-sm text-gray-500">No developers assigned.</p>}
                               {viewingProject.developers?.map(dev => (
-                                  <li key={dev.id} className="p-3 text-sm flex justify-between">
-                                      <span>{dev.full_name}</span>
-                                      <span className="text-gray-400 text-xs">{dev.email}</span>
-                                  </li>
+                                  <div key={dev.id} className="inline-flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-full border border-gray-200">
+                                      <span className="text-sm font-medium text-gray-900">{dev.full_name}</span>
+                                      <span className="text-xs text-gray-500">{dev.email}</span>
+                                  </div>
                               ))}
-                          </ul>
+                          </div>
                       </div>
 
                       <div>
                           <h4 className="text-sm font-medium text-gray-500 mb-2">Tasks ({viewingProject.tasks?.length || 0})</h4>
-                          <div className="max-h-48 overflow-y-auto rounded-md border border-gray-200 bg-gray-50">
-                            <ul className="divide-y divide-gray-200">
-                                {viewingProject.tasks?.length === 0 && <li className="p-3 text-sm text-gray-500">No tasks found.</li>}
-                                {viewingProject.tasks?.map(task => (
-                                    <li key={task.id} className="p-3 text-sm flex justify-between items-center">
-                                        <div>
-                                            <p className="font-medium">{task.title}</p>
-                                            <p className="text-xs text-gray-500">{task.status}</p>
-                                        </div>
-                                        <div className="text-xs text-gray-500">
-                                            {task.hours_worked} / {task.hours_required} hrs
-                                        </div>
-                                    </li>
-                                ))}
-                            </ul>
-                          </div>
+                          {viewingProject.tasks?.length === 0 ? (
+                              <p className="text-sm text-gray-500">No tasks found.</p>
+                          ) : (
+                              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-h-64 overflow-y-auto">
+                                  {viewingProject.tasks?.map(task => (
+                                      <div key={task.id} className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+                                          <p className="font-medium text-sm text-gray-900 truncate" title={task.title}>{task.title}</p>
+                                          <div className="flex items-center justify-between mt-1">
+                                              <span className={`text-xs px-1.5 py-0.5 rounded ${
+                                                  task.status === 'Done' ? 'bg-green-100 text-green-700' :
+                                                  task.status === 'In Progress' ? 'bg-blue-100 text-blue-700' :
+                                                  'bg-gray-100 text-gray-600'
+                                              }`}>{task.status}</span>
+                                              <span className="text-xs text-gray-500">{task.hours_worked}/{task.hours_required}h</span>
+                                          </div>
+                                      </div>
+                                  ))}
+                              </div>
+                          )}
                       </div>
                   </div>
                   <div className="bg-gray-50 px-4 py-3 sm:flex sm:flex-row-reverse sm:px-6 rounded-b-lg">

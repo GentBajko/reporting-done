@@ -144,10 +144,10 @@ const UserProfilePage = () => {
   if (!profileData) return <div className="text-center p-10">Loading...</div>;
 
   return (
-    <div className="container mx-auto max-w-2xl p-4 md:p-6 bg-gray-50 min-h-screen">
-      <div className="bg-white shadow-xl rounded-lg p-6 md:p-8">
-        <div className="flex flex-col sm:flex-row items-center sm:items-start mb-8">
-          <HiUserCircle className="w-24 h-24 md:w-32 md:h-32 text-gray-400 mb-4 sm:mb-0 sm:mr-8" />
+    <div className="p-4 bg-white min-h-screen">
+      <div className="max-w-2xl mx-auto">
+        <div className="flex flex-col sm:flex-row items-center sm:items-start mb-8 border-b border-gray-200 pb-6">
+          <HiUserCircle className="w-24 h-24 md:w-32 md:h-32 text-gray-300 mb-4 sm:mb-0 sm:mr-8" />
           <div className="text-center sm:text-left flex-grow">
             {isEditing ? (
               <input
@@ -155,48 +155,48 @@ const UserProfilePage = () => {
                 name="full_name"
                 value={editFormData.full_name || ""}
                 onChange={handleInputChange}
-                className="text-3xl font-bold text-gray-800 mb-1 w-full border-b-2 border-indigo-500 focus:outline-none py-1"
+                className="text-2xl font-bold text-gray-800 mb-1 w-full border-b border-gray-300 focus:border-indigo-500 focus:outline-none py-1"
                 placeholder="Full Name"
               />
             ) : (
-              <h1 className="text-3xl font-bold text-gray-800 mb-1">
+              <h1 className="text-2xl font-bold text-gray-800 mb-1">
                 {profileData.full_name} {/* Changed from fullName */}
               </h1>
             )}
             {/* Use getRoleDisplay for permissions */}
-            <p className="text-md text-gray-600">
+            <p className="text-sm text-gray-500">
               Role: {getRoleDisplay(profileData.permissions)}
             </p>
           </div>
           {!isEditing ? (
             <button
               onClick={handleEditToggle}
-              className="mt-4 sm:mt-0 p-2 text-[#002F41] hover:text-[#004057] rounded-md hover:bg-gray-100 transition duration-150 flex items-center"
+              className="mt-4 sm:mt-0 p-2 text-[#002F41] hover:bg-gray-100 rounded transition duration-150 flex items-center text-sm"
             >
-              <HiPencil className="mr-2 h-5 w-5" /> Edit Profile
+              <HiPencil className="mr-2 h-4 w-4" /> Edit Profile
             </button>
           ) : (
             <div className="mt-4 sm:mt-0 flex space-x-2">
               <button
                 onClick={handleSaveChanges}
                 disabled={isSaving}
-                className="p-2 text-green-600 hover:text-green-700 rounded-md hover:bg-green-100 transition duration-150 flex items-center"
+                className="p-2 text-green-600 hover:bg-green-50 rounded transition duration-150 flex items-center text-sm"
               >
-                <HiCheck className="mr-1 h-5 w-5" /> Save
+                <HiCheck className="mr-1 h-4 w-4" /> Save
               </button>
               <button
                 onClick={handleEditToggle}
-                className="p-2 text-red-500 hover:text-red-700 rounded-md hover:bg-red-100 transition duration-150 flex items-center"
+                className="p-2 text-red-500 hover:bg-red-50 rounded transition duration-150 flex items-center text-sm"
               >
-                <HiX className="mr-1 h-5 w-5" /> Cancel
+                <HiX className="mr-1 h-4 w-4" /> Cancel
               </button>
             </div>
           )}
         </div>
 
-        <div className="space-y-4">
+        <div className="space-y-6">
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
               Email Address
             </label>
             {isEditing ? (
@@ -205,21 +205,21 @@ const UserProfilePage = () => {
                 name="email"
                 value={editFormData.email || ""}
                 onChange={handleInputChange}
-                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                className="block w-full px-3 py-2 border border-gray-300 rounded shadow-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
                 placeholder="your@email.com"
               />
             ) : (
-              <p className="mt-1 text-md text-gray-900 bg-gray-50 p-3 rounded-md">
+              <p className="text-base text-gray-900">
                 {profileData.email}
               </p>
             )}
           </div>
 
           <div>
-            <label className="block text-sm font-medium text-gray-700">
+            <label className="block text-xs font-medium text-gray-500 uppercase tracking-wider mb-1">
               User ID
             </label>
-            <p className="mt-1 text-md text-gray-700 bg-gray-50 p-3 rounded-md">
+            <p className="text-sm text-gray-600 font-mono">
               {profileData.id}
             </p>
           </div>

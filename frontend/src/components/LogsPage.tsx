@@ -1,21 +1,22 @@
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import {
   HiOutlineBan,
   HiOutlineCheckCircle,
   HiOutlineClock,
   HiOutlineExclamation,
   HiOutlineEye,
-  HiOutlineIdentification,
   HiOutlineInformationCircle,
   HiOutlinePencil,
-  HiPlus,
+  HiOutlineFilter,
+  HiChevronDown,
+  HiChevronUp,
   HiX
 } from "react-icons/hi";
+import { useApi } from "../hooks/useApi";
+import type { Log, PaginatedResponse, Pagination, Task, Project, User } from "../types";
 import Modal from "./Modal";
 import DataTable from "./common/DataTable";
-import SearchFilter from "./common/SearchFilter";
-import { useApi } from "../hooks/useApi";
-import type { Log, Task, Pagination, PaginatedResponse } from "../types";
+import FloatingActionButton from "./common/FloatingActionButton";
 
 const getLogStatusClass = (task_status: string) => {
   switch (task_status?.toLowerCase()) {
@@ -59,6 +60,9 @@ const LogsPage = () => {
   const [error, setError] = useState<string | null>(null);
 
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  
   const [viewingLog, setViewingLog] = useState<Log | null>(null);
   const [editingLog, setEditingLog] = useState<Log | null>(null);
 
@@ -69,8 +73,39 @@ const LogsPage = () => {
     task_status: "In Progress",
   });
 
-  // Backend logs endpoint currently only supports pagination, no search filters exposed in controller
-  const fetchLogs = async (page: number = 1) => {
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [projectFilter, setProjectFilter] = useState<string>("all");
+  const [userFilter, setUserFilter] = useState<string>("all");
+  const [taskFilter, setTaskFilter] = useState<string>("all");
+  const [dateFrom, setDateFrom] = useState<string>("");
+  const [dateTo, setDateTo] = useState<string>("");
+  const [hoursMin, setHoursMin] = useState<string>("");
+  const [hoursMax, setHoursMax] = useState<string>("");
+  const [isFiltersOpen, setIsFiltersOpen] = useState(false);
+
+  const activeFiltersCount = [
+      statusFilter !== "all",
+      projectFilter !== "all",
+      userFilter !== "all",
+      taskFilter !== "all",
+      dateFrom !== "",
+      dateTo !== "",
+      hoursMin !== "",
+      hoursMax !== ""
+  ].filter(Boolean).length;
+
+  const fetchLogs = async (
+    page: number = 1, 
+    status: string = "all", 
+    project: string = "all", 
+    user: string = "all",
+    task: string = "all",
+    fromDate: string = "",
+    toDate: string = "",
+    minHours: string = "",
+    maxHours: string = ""
+  ) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -78,6 +113,39 @@ const LogsPage = () => {
         page: page.toString(),
         limit: "15",
       });
+      
+      if (status !== "all") {
+          const statusMap: Record<string, string> = {
+                "todo": "To Do",
+                "inprogress": "In Progress",
+                "done": "Done",
+                "returned": "Returned"
+            };
+          queryParams.append("task_status", statusMap[status] || status);
+      }
+      if (project !== "all") {
+          queryParams.append("project_id", project);
+      }
+      if (user !== "all") {
+          queryParams.append("user_id", user);
+      }
+      if (task !== "all") {
+          queryParams.append("task_id", task);
+      }
+      if (fromDate) {
+          const fromTimestamp = Math.floor(new Date(fromDate).getTime() / 1000);
+          queryParams.append("date_from", fromTimestamp.toString());
+      }
+      if (toDate) {
+          const toTimestamp = Math.floor(new Date(toDate + "T23:59:59").getTime() / 1000);
+          queryParams.append("date_to", toTimestamp.toString());
+      }
+      if (minHours) {
+          queryParams.append("hours_min", minHours);
+      }
+      if (maxHours) {
+          queryParams.append("hours_max", maxHours);
+      }
 
       const response = await request<PaginatedResponse<Log>>(`/log/?${queryParams.toString()}`);
 
@@ -101,27 +169,32 @@ const LogsPage = () => {
     }
   };
 
-  // Fetch tasks for dropdown
-  const fetchTasks = async () => {
+  const fetchOptions = async () => {
       try {
-          // Fetching a batch of tasks. In production, this should be a searchable select.
-          const response = await request<any>('/task/?limit=100');
-          if (response.items) setTasks(response.items);
-          else if (Array.isArray(response)) setTasks(response); // Fallback
+          const taskRes = await request<any>('/task/?limit=100');
+          if (taskRes.items) setTasks(taskRes.items);
+          else if (Array.isArray(taskRes)) setTasks(taskRes);
+
+          const projRes = await request<any>('/project/?limit=100');
+          if (projRes.items) setProjects(projRes.items);
+          else if (Array.isArray(projRes)) setProjects(projRes);
+          
+          const userRes = await request<any>('/user/?limit=100');
+          if (userRes.items) setUsers(userRes.items);
+          else if (Array.isArray(userRes)) setUsers(userRes);
+
       } catch (e) {
-          console.error("Failed to fetch tasks", e);
+          console.error("Failed to fetch options", e);
       }
   };
 
   useEffect(() => {
-    fetchLogs(currentPage);
-  }, [currentPage]);
+    fetchLogs(currentPage, statusFilter, projectFilter, userFilter, taskFilter, dateFrom, dateTo, hoursMin, hoursMax);
+  }, [currentPage, statusFilter, projectFilter, userFilter, taskFilter, dateFrom, dateTo, hoursMin, hoursMax]);
 
   useEffect(() => {
-      if (isModalOpen) {
-          fetchTasks();
-      }
-  }, [isModalOpen]);
+      fetchOptions();
+  }, []);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
@@ -284,29 +357,180 @@ const LogsPage = () => {
     },
   ];
 
+  const filteredLogs = logs;
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-        {/* Search is disabled as backend doesn't support it yet on this endpoint */}
-        <div className="w-full max-w-xs"></div> 
-        <button
-          onClick={openModal}
-          className="bg-[#002F41] hover:bg-[#004057] text-white font-semibold py-2 px-4 rounded inline-flex items-center transition duration-150"
-        >
-          <HiPlus className="mr-2 h-5 w-5" />
-          Create New Log
-        </button>
+    <div className="flex flex-col h-full bg-gray-50">
+      <div className="bg-white border-b border-gray-200 shadow-sm">
+        <div className="px-6 py-4">
+          <div className="flex flex-col bg-gray-50 p-4 rounded-lg border border-gray-200 gap-4">
+            <div className="flex flex-col md:flex-row gap-4 items-center justify-end">
+                {/* Search was hidden/removed previously as per code analysis. We keep the layout consistent with TasksPage but without search input for now if not needed, OR we just put the Filter button on the right.
+                    Wait, the user prompt said "Just leave the controls at the top".
+                    If there is no search, we can just show the Filter button.
+                    Or we can add a "fake" spacer.
+                */}
+                <div className="flex items-center gap-2 ml-auto">
+                    <button
+                        onClick={() => setIsFiltersOpen(!isFiltersOpen)}
+                        className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium rounded-lg border transition-colors ${
+                            isFiltersOpen || activeFiltersCount > 0
+                            ? "border-[#002F41] text-[#002F41] bg-white" 
+                            : "border-gray-300 text-gray-700 bg-white hover:bg-gray-50"
+                        }`}
+                    >
+                        <HiOutlineFilter className="h-5 w-5" />
+                        <span>Filters</span>
+                        {activeFiltersCount > 0 && (
+                            <span className="flex items-center justify-center w-5 h-5 text-xs text-white bg-[#002F41] rounded-full">
+                                {activeFiltersCount}
+                            </span>
+                        )}
+                        {isFiltersOpen ? <HiChevronUp className="h-4 w-4" /> : <HiChevronDown className="h-4 w-4" />}
+                    </button>
+                    {(activeFiltersCount > 0) && (
+                        <button 
+                            onClick={() => {
+                                setSearchQuery("");
+                                setStatusFilter("all");
+                                setProjectFilter("all");
+                                setUserFilter("all");
+                                setTaskFilter("all");
+                                setDateFrom("");
+                                setDateTo("");
+                                setHoursMin("");
+                                setHoursMax("");
+                            }}
+                            className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2"
+                        >
+                            Reset
+                        </button>
+                    )}
+                </div>
+            </div>
+            
+            {isFiltersOpen && (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2 border-t border-gray-200">
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-500 uppercase">Status</label>
+                        <select
+                            value={statusFilter}
+                            onChange={(e) => setStatusFilter(e.target.value)}
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                        >
+                            <option value="all">All Statuses</option>
+                            <option value="todo">To Do</option>
+                            <option value="inprogress">In Progress</option>
+                            <option value="done">Done</option>
+                            <option value="returned">Returned</option>
+                        </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-500 uppercase">Project</label>
+                        <select
+                            value={projectFilter}
+                            onChange={(e) => setProjectFilter(e.target.value)}
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                        >
+                            <option value="all">All Projects</option>
+                            {projects.map(proj => (
+                                <option key={proj.id} value={proj.id}>{proj.name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-500 uppercase">User</label>
+                        <select
+                            value={userFilter}
+                            onChange={(e) => setUserFilter(e.target.value)}
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                        >
+                            <option value="all">All Users</option>
+                            {users.map(u => (
+                                <option key={u.id} value={u.id}>{u.full_name}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-500 uppercase">Task</label>
+                        <select
+                            value={taskFilter}
+                            onChange={(e) => setTaskFilter(e.target.value)}
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                        >
+                            <option value="all">All Tasks</option>
+                            {tasks.map(t => (
+                                <option key={t.id} value={t.id}>{t.title}</option>
+                            ))}
+                        </select>
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-500 uppercase">From Date</label>
+                        <input
+                            type="date"
+                            value={dateFrom}
+                            onChange={(e) => setDateFrom(e.target.value)}
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                        />
+                    </div>
+
+                    <div className="flex flex-col gap-1">
+                        <label className="text-xs font-medium text-gray-500 uppercase">To Date</label>
+                        <input
+                            type="date"
+                            value={dateTo}
+                            onChange={(e) => setDateTo(e.target.value)}
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                        />
+                    </div>
+
+                    <div className="flex flex-col gap-1 col-span-1 sm:col-span-2 lg:col-span-2">
+                        <label className="text-xs font-medium text-gray-500 uppercase">Hours Range</label>
+                        <div className="flex items-center gap-2">
+                            <input
+                                type="number"
+                                placeholder="Min"
+                                value={hoursMin}
+                                onChange={(e) => setHoursMin(e.target.value)}
+                                min="0"
+                                step="0.5"
+                                className="w-full text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                            />
+                            <span className="text-gray-400">-</span>
+                            <input
+                                type="number"
+                                placeholder="Max"
+                                value={hoursMax}
+                                onChange={(e) => setHoursMax(e.target.value)}
+                                min="0"
+                                step="0.5"
+                                className="w-full text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                            />
+                        </div>
+                    </div>
+                </div>
+            )}
+          </div>
+        </div>
       </div>
 
-      {error && <div className="text-red-600 bg-red-100 p-3 rounded">{error}</div>}
+      {error && <div className="text-red-600 bg-red-100 p-4 border-b border-red-200">{error}</div>}
 
-      <DataTable
-        columns={columns}
-        data={logs}
-        pagination={pagination}
-        onPageChange={handlePageChange}
-        isLoading={isLoading}
-      />
+      <div className="flex-1 overflow-auto">
+        <DataTable
+          columns={columns}
+          data={filteredLogs}
+          pagination={pagination}
+          onPageChange={handlePageChange}
+          isLoading={isLoading}
+        />
+      </div>
+
+      <FloatingActionButton onClick={openModal} title="Create New Log" />
 
       {/* Create/Edit Modal */}
       <Modal

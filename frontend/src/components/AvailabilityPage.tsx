@@ -1,15 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 import {
-  HiCalendar,
   HiChevronLeft,
   HiChevronRight,
-  HiInformationCircle,
+  HiCheck,
 } from "react-icons/hi";
 import { useAuth } from "../contexts/AuthContext";
 import { ToastContainer, useToast } from "./common/Toast";
-
-const USER_ROLE: "admin" | "user" = "admin";
-const CURRENT_USER_ID: string = "usr-self";
+import FloatingActionButton from "./common/FloatingActionButton";
 
 const daysOfWeekHeaders = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
@@ -134,7 +131,6 @@ const AvailabilityPage = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
     const firstDayOfMonth = new Date(year, month, 1);
-    const lastDayOfMonth = new Date(year, month + 1, 0);
     const daysInMonth = [];
 
     let dayOfWeek = firstDayOfMonth.getDay();
@@ -297,25 +293,40 @@ const AvailabilityPage = () => {
   }).length;
 
   return (
-    <div className="space-y-6 p-4 md:p-6 bg-gray-50 min-h-screen">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
-        <h1 className="text-2xl font-semibold text-gray-800 flex items-center">
-          <HiCalendar className="mr-3 h-7 w-7 text-[#002F41]" />
-          Monthly Office Availability
-        </h1>
+    <div className="flex flex-col h-full bg-gray-50">
+      <div className="bg-white border-b border-gray-200 flex-none">
+        <div className="flex justify-between items-center p-2">
+          <div className="flex items-center space-x-2">
+             <button
+                onClick={() => changeMonth(-1)}
+                className="p-1.5 rounded hover:bg-gray-100 transition text-[#002F41]"
+                aria-label="Previous month"
+              >
+                <HiChevronLeft className="h-5 w-5" />
+              </button>
+              <h2 className="text-md font-semibold text-gray-700">
+                {currentDate.toLocaleString("default", {
+                  month: "long",
+                  year: "numeric",
+                })}
+              </h2>
+              <button
+                onClick={() => changeMonth(1)}
+                className="p-1.5 rounded hover:bg-gray-100 transition text-[#002F41]"
+                aria-label="Next month"
+              >
+                <HiChevronRight className="h-5 w-5" />
+              </button>
+          </div>
+
         {isAdmin && usersForSelector.length > 0 && (
-          <div className="w-full sm:w-auto">
-            <label
-              htmlFor="userSelector"
-              className="block text-sm font-medium text-gray-700 mb-1"
-            >
-              View Availability For:
-            </label>
+            <div className="flex items-center space-x-2">
+                <span className="text-xs text-gray-500 hidden sm:inline">User:</span>
             <select
               id="userSelector"
               value={selectedUserId}
               onChange={(e) => setSelectedUserId(e.target.value)}
-              className="mt-1 block w-full sm:w-64 pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md shadow-sm"
+                className="block w-40 pl-2 pr-8 py-1 text-xs border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
             >
               {usersForSelector.map((u) => (
                 <option key={u.id} value={u.id}>
@@ -327,68 +338,49 @@ const AvailabilityPage = () => {
         )}
       </div>
 
-      <div className="bg-white shadow-xl rounded-lg p-6 md:p-8">
-        <div className="flex justify-between items-center mb-6">
-          <button
-            onClick={() => changeMonth(-1)}
-            className="p-2 rounded-md hover:bg-gray-200 transition text-[#002F41]"
-            aria-label="Previous month"
+        <div className="grid grid-cols-7 gap-px border-t border-gray-200 bg-gray-100">
+            {daysOfWeekHeaders.map((day) => (
+            <div
+                key={day}
+                className="text-center py-1 text-[10px] font-semibold text-gray-500 uppercase bg-gray-50"
           >
-            <HiChevronLeft className="h-6 w-6" />
-          </button>
-          <h2 className="text-xl font-semibold text-gray-700">
-            {currentDate.toLocaleString("default", {
-              month: "long",
-              year: "numeric",
-            })}
-          </h2>
-          <button
-            onClick={() => changeMonth(1)}
-            className="p-2 rounded-md hover:bg-gray-200 transition text-[#002F41]"
-            aria-label="Next month"
-          >
-            <HiChevronRight className="h-6 w-6" />
-          </button>
+                {day}
+            </div>
+            ))}
+        </div>
         </div>
 
+      <div className="flex-1 overflow-y-auto">
         {isLoading && (
-          <p className="text-center text-gray-600 py-8">
+          <p className="text-center text-gray-600 py-8 text-sm">
             Loading availability...
           </p>
         )}
         {error && (
-          <p className="text-red-600 bg-red-100 p-3 rounded-md text-center">
+          <p className="text-red-600 bg-red-100 p-3 text-center m-2">
             Error: {error}
           </p>
         )}
 
         {!isLoading && !error && (
           <>
-            <div className="grid grid-cols-7 gap-px border-l border-t border-gray-200 bg-gray-200">
-              {daysOfWeekHeaders.map((day) => (
-                <div
-                  key={day}
-                  className="text-center py-2 text-xs font-medium text-gray-500 uppercase bg-gray-50 border-r border-b"
-                >
-                  {day}
-                </div>
-              ))}
+            <div className="grid grid-cols-7 gap-px border-b border-gray-200 bg-gray-200">
               {calendarDays.map(
                 ({ date, isCurrentMonth, isOfficeDay, isWeekend }, index) => {
                   const dateKey = date.toISOString().split("T")[0];
                   let cellClasses =
-                    "py-2 min-h-[80px] md:min-h-[100px] relative group transition-colors duration-150 ease-in-out bg-white border-r border-b border-gray-200";
+                    "min-h-[80px] md:min-h-[100px] relative group transition-colors duration-150 ease-in-out bg-white flex flex-col";
                   if (!isCurrentMonth) {
                     cellClasses += " bg-gray-50 text-gray-400";
                   } else if (isWeekend) {
-                    cellClasses += " bg-gray-100";
+                    cellClasses += " bg-gray-50/50";
                   }
 
                   let dayNumberClasses =
-                    "absolute top-1.5 left-1.5 text-xs md:text-sm";
+                    "p-1 text-xs";
                   if (!isCurrentMonth) dayNumberClasses += " text-gray-400";
                   else if (isOfficeDay)
-                    dayNumberClasses += " font-semibold text-white";
+                    dayNumberClasses += " font-bold text-[#002F41]";
                   else dayNumberClasses += " text-gray-700";
 
                   return (
@@ -404,64 +396,42 @@ const AvailabilityPage = () => {
                       }
                     >
                       <span className={dayNumberClasses}>{date.getDate()}</span>
+                      
+                      <div className="flex-1 flex items-center justify-center">
                       {isCurrentMonth && isOfficeDay && !isWeekend && (
-                        <div className="absolute inset-0 bg-indigo-500 opacity-80 flex items-center justify-center rounded-sm">
-                          <span className="text-xs font-semibold text-white hidden group-hover:inline">
-                            Office
-                          </span>
+                            <div className="w-full h-full bg-indigo-100 opacity-50 flex items-center justify-center">
+                                <span className="text-xs font-semibold text-indigo-700">Office</span>
                         </div>
                       )}
-                      {isCurrentMonth && isOfficeDay && (
-                        <span className="absolute bottom-1 right-1 text-[10px] bg-indigo-500 text-white px-1.5 py-0.5 rounded-full">
-                          Office
-                        </span>
-                      )}
                       {isCurrentMonth && !isOfficeDay && !isWeekend && (
-                        <span className="absolute bottom-1 right-1 text-[10px] bg-purple-100 text-purple-700 px-1.5 py-0.5 rounded-full">
-                          Remote
-                        </span>
+                            <div className="flex items-center justify-center">
+                                <span className="text-[10px] text-purple-400">Remote</span>
+                            </div>
                       )}
+                      </div>
                     </div>
                   );
                 }
               )}
             </div>
-            <div className="mt-6 p-4 border border-blue-300 bg-blue-50 rounded-md">
-              <div className="flex items-start">
-                <HiInformationCircle className="h-5 w-5 text-blue-600 mr-2 flex-shrink-0 mt-0.5" />
+
+            <div className="p-3 border-t border-gray-200 bg-white text-xs flex justify-between items-center">
                 <div>
-                  <p className="text-sm text-blue-700">
-                    Click on a day to mark it as an "Office" day. Unselected
-                    workdays are "Remote".
-                  </p>
-                  <p className="text-xs text-blue-600 mt-1">
-                    A minimum of{" "}
-                    <strong>{minOfficeDaysPerWeek} office days per week</strong>{" "}
-                    (for non-weekend days) is encouraged.
-                  </p>
-                  <p className="text-xs text-blue-600 mt-1">
-                    Selected office days in{" "}
-                    {currentDate.toLocaleString("default", { month: "long" })}:{" "}
-                    <span className="font-bold">
-                      {officeDaysInCurrentMonth}
-                    </span>
+                    <p className="text-gray-600">
+                        <span className="font-bold">{officeDaysInCurrentMonth}</span> office days selected.
+                        <span className="text-gray-400 ml-2">(Min: {minOfficeDaysPerWeek}/week)</span>
                   </p>
                 </div>
-              </div>
-            </div>
-
-            <div className="mt-8 flex justify-end">
-              <button
-                onClick={handleSubmit}
-                disabled={isSaving || isLoading}
-                className="px-6 py-2.5 bg-[#002F41] text-white font-semibold rounded-lg shadow-md hover:bg-[#004057] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#002F41] disabled:opacity-50 transition duration-150"
-              >
-                {isSaving ? "Saving..." : "Save Availability"}
-              </button>
             </div>
           </>
         )}
       </div>
+
+      <FloatingActionButton 
+        onClick={handleSubmit} 
+        title="Save Availability" 
+        icon={HiCheck}
+      />
 
       <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>

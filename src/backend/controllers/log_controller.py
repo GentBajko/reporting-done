@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Sequence, Any
 
 from fastapi import Query, Depends, APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
@@ -72,6 +72,14 @@ def get_all_logs_endpoint(
     limit: int = Query(15, ge=1, le=100),
     sort: str | None = Query(None),
     order: str = Query("desc"),
+    task_id: str | None = Query(None),
+    project_id: str | None = Query(None),
+    user_id: str | None = Query(None),
+    task_status: str | None = Query(None),
+    date_from: int | None = Query(None, description="Unix timestamp for start date"),
+    date_to: int | None = Query(None, description="Unix timestamp for end date"),
+    hours_min: float | None = Query(None, description="Minimum hours spent"),
+    hours_max: float | None = Query(None, description="Maximum hours spent"),
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
     log_service: LogService = Depends(get_log_service),
@@ -82,11 +90,29 @@ def get_all_logs_endpoint(
         sort_by=sort,
         sort_order=order,
     )
+
+    filters: dict[str, Any] = {}
+    if task_id:
+        filters["task_id"] = task_id
+    if project_id:
+        filters["project_id"] = project_id
+    if user_id:
+        filters["user_id"] = user_id
+    if task_status:
+        filters["task_status"] = task_status
+    if date_from is not None:
+        filters["timestamp__gte"] = date_from
+    if date_to is not None:
+        filters["timestamp__lte"] = date_to
+    if hours_min is not None:
+        filters["hours_spent_today__gte"] = hours_min
+    if hours_max is not None:
+        filters["hours_spent_today__lte"] = hours_max
     
     if is_admin(current_user):
-        result = log_service.list_all(pagination, session)
+        result = log_service.list_all(pagination, session, **filters)
     else:
-        result = log_service.list_for_user(current_user.id, pagination, session)
+        result = log_service.list_for_user(current_user.id, pagination, session, **filters)
     
     return PaginatedLogsResponse(
         items=result.items,
