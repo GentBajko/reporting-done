@@ -482,6 +482,7 @@ const CalendarPage = () => {
                 const hasEvents = day.events.length > 0;
                 const isSelected =
                     selectedDay?.dateKey === day.dateKey && day.isCurrentMonth;
+                const isOfficeDay = day.events.some((e) => e.type === "Office");
 
                 return (
                     <div
@@ -491,9 +492,10 @@ const CalendarPage = () => {
                         min-h-[80px] md:min-h-[100px] p-1 relative cursor-pointer transition-all duration-150 bg-white flex flex-col
                         ${!day.isCurrentMonth ? "bg-gray-50 text-gray-400" : ""}
                         ${day.isWeekend && day.isCurrentMonth ? "bg-gray-50/30" : ""}
+                        ${isOfficeDay && day.isCurrentMonth && !isSelected ? "bg-indigo-50" : ""}
                         ${day.isToday ? "ring-1 ring-inset ring-[#002F41]" : ""}
-                        ${isSelected ? "bg-indigo-50" : ""}
-                        ${day.isCurrentMonth ? "hover:bg-gray-50" : ""}
+                        ${isSelected ? "bg-indigo-100 ring-1 ring-indigo-200" : ""}
+                        ${day.isCurrentMonth && !isSelected ? "hover:bg-gray-100" : ""}
                     `}
                     >
                     <span
