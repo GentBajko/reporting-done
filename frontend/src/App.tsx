@@ -33,7 +33,7 @@ import UsersPage from "./components/UsersPage";
 import { useAuth } from "./contexts/AuthContext";
 
 const VITE_APP_LOGO_URL =
-  import.meta.env.VITE_APP_LOGO_URL || "https://businessdone.co/logo.svg"; // Default if not set
+  import.meta.env.VITE_APP_LOGO_URL || "https://usc1.contabostorage.com/278d5c220c4043c09cbe73860c7acb17:ocrdone/assets/BusinessDoneLogoTransparentWhite.png";
 
 const LoginPage = () => {
   const { login } = useAuth();
@@ -59,11 +59,13 @@ const LoginPage = () => {
 
   return (
     <div className="flex flex-col items-center justify-center h-screen w-screen bg-gray-200">
-      <img
-        src={VITE_APP_LOGO_URL}
-        alt="Reports Done Logo"
-        className="h-12 mb-8"
-      />
+      <div className="h-12 mb-8 overflow-hidden">
+        <img
+          src={VITE_APP_LOGO_URL}
+          alt="Reports Done Logo"
+          className="h-24 -mt-6 object-contain"
+        />
+      </div>
       <h1 className="text-3xl mb-6 text-gray-800">Reports Done Login</h1>
       <form
         onSubmit={handleLogin}
@@ -215,12 +217,12 @@ const Layout = () => {
   return (
     <div className="flex h-screen w-screen bg-gray-100 overflow-x-hidden">
       <div className="w-64 bg-[#002F41] shadow-md flex flex-col text-white shrink-0">
-        <div className="p-4 border-b border-gray-700">
-          <Link to="/" className="flex items-center">
+        <div className="px-4 py-3 border-b border-gray-700 overflow-hidden">
+          <Link to="/" className="flex items-center justify-center h-16">
             <img
               src={VITE_APP_LOGO_URL}
               alt="Reports Done"
-              className="h-auto"
+              className="h-32 -my-8 w-full object-contain"
             />
           </Link>
         </div>

@@ -396,17 +396,17 @@ const CalendarPage = () => {
     <div className="flex flex-col h-full bg-gray-50">
       {/* Header moved to App layout */}
       
-      <div className="bg-white border-b border-gray-200 flex-none">
+      <div className="bg-[#002F41] flex-none">
         <div className="flex justify-between items-center p-2">
           <div className="flex items-center space-x-2">
              <button
                 onClick={() => changeMonth(-1)}
-                className="p-1.5 rounded hover:bg-gray-100 transition text-[#002F41]"
+                className="p-1.5 rounded hover:bg-gray-700 transition text-white"
                 aria-label="Previous month"
               >
                 <HiChevronLeft className="h-5 w-5" />
               </button>
-              <h2 className="text-md font-semibold text-gray-700">
+              <h2 className="text-md font-semibold text-white">
                 {currentDisplayDate.toLocaleString("default", {
                   month: "long",
                   year: "numeric",
@@ -414,14 +414,14 @@ const CalendarPage = () => {
               </h2>
               <button
                 onClick={() => changeMonth(1)}
-                className="p-1.5 rounded hover:bg-gray-100 transition text-[#002F41]"
+                className="p-1.5 rounded hover:bg-gray-700 transition text-white"
                 aria-label="Next month"
               >
                 <HiChevronRight className="h-5 w-5" />
               </button>
               <button
                 onClick={goToToday}
-                className="px-2 py-1 text-xs bg-gray-100 hover:bg-gray-200 rounded border border-gray-300 text-gray-600 transition ml-2"
+                className="px-2 py-1 text-xs bg-gray-700 hover:bg-gray-600 rounded text-white transition ml-2"
               >
                 Today
               </button>
@@ -429,14 +429,14 @@ const CalendarPage = () => {
           
           {viewableUsers.length > 1 && (
             <div className="flex items-center space-x-2">
-              <label htmlFor="userSelect" className="text-xs text-gray-600">
+              <label htmlFor="userSelect" className="text-xs text-gray-300">
                 Viewing:
               </label>
               <select
                 id="userSelect"
                 value={selectedUserId || ""}
                 onChange={(e) => setSelectedUserId(e.target.value)}
-                className="text-xs px-2 py-1 border border-gray-300 rounded bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#002F41]"
+                className="text-xs px-2 py-1 border border-gray-600 rounded bg-gray-700 text-white focus:outline-none focus:ring-1 focus:ring-[#71c9ed]"
               >
                 {viewableUsers.map((u) => (
                   <option key={u.id} value={u.id}>
@@ -449,11 +449,11 @@ const CalendarPage = () => {
         </div>
         
         {/* Grid Header */}
-        <div className="grid grid-cols-7 gap-px border-t border-gray-200 bg-gray-100">
+        <div className="grid grid-cols-7 gap-px bg-[#002F41]">
             {daysOfWeekHeaders.map((day) => (
             <div
                 key={day}
-                className="text-center py-1 text-[10px] font-semibold text-gray-500 uppercase bg-gray-50"
+                className="text-center py-1 text-[10px] font-semibold text-gray-300 uppercase bg-[#002F41]"
             >
                 {day}
             </div>

@@ -7,7 +7,7 @@ T = TypeVar("T")
 @dataclass(frozen=True, slots=True)
 class PaginationParams:
     page: int = 1
-    per_page: int = 15
+    per_page: int = 25
     sort_by: str | None = None
     sort_order: str = "asc"
     

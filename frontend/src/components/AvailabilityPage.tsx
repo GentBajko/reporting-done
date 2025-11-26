@@ -294,17 +294,17 @@ const AvailabilityPage = () => {
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
-      <div className="bg-white border-b border-gray-200 flex-none">
+      <div className="bg-[#002F41] flex-none">
         <div className="flex justify-between items-center p-2">
           <div className="flex items-center space-x-2">
              <button
                 onClick={() => changeMonth(-1)}
-                className="p-1.5 rounded hover:bg-gray-100 transition text-[#002F41]"
+                className="p-1.5 rounded hover:bg-gray-700 transition text-white"
                 aria-label="Previous month"
               >
                 <HiChevronLeft className="h-5 w-5" />
               </button>
-              <h2 className="text-md font-semibold text-gray-700">
+              <h2 className="text-md font-semibold text-white">
                 {currentDate.toLocaleString("default", {
                   month: "long",
                   year: "numeric",
@@ -312,7 +312,7 @@ const AvailabilityPage = () => {
               </h2>
               <button
                 onClick={() => changeMonth(1)}
-                className="p-1.5 rounded hover:bg-gray-100 transition text-[#002F41]"
+                className="p-1.5 rounded hover:bg-gray-700 transition text-white"
                 aria-label="Next month"
               >
                 <HiChevronRight className="h-5 w-5" />
@@ -321,12 +321,12 @@ const AvailabilityPage = () => {
 
         {isAdmin && usersForSelector.length > 0 && (
             <div className="flex items-center space-x-2">
-                <span className="text-xs text-gray-500 hidden sm:inline">User:</span>
+                <span className="text-xs text-gray-300 hidden sm:inline">User:</span>
             <select
               id="userSelector"
               value={selectedUserId}
               onChange={(e) => setSelectedUserId(e.target.value)}
-                className="block w-40 pl-2 pr-8 py-1 text-xs border-gray-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 rounded-md"
+                className="block w-40 pl-2 pr-8 py-1 text-xs border-gray-600 bg-gray-700 text-white focus:outline-none focus:ring-[#71c9ed] focus:border-[#71c9ed] rounded-md"
             >
               {usersForSelector.map((u) => (
                 <option key={u.id} value={u.id}>
@@ -338,12 +338,12 @@ const AvailabilityPage = () => {
         )}
       </div>
 
-        <div className="grid grid-cols-7 gap-px border-t border-gray-200 bg-gray-100">
+        <div className="grid grid-cols-7 gap-px bg-[#002F41]">
             {daysOfWeekHeaders.map((day) => (
             <div
                 key={day}
-                className="text-center py-1 text-[10px] font-semibold text-gray-500 uppercase bg-gray-50"
-          >
+                className="text-center py-1 text-[10px] font-semibold text-gray-300 uppercase bg-[#002F41]"
+            >
                 {day}
             </div>
             ))}

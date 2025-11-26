@@ -95,7 +95,7 @@ async def create_task_endpoint(
 @task_router.get("/", response_model=PaginatedTasksResponse)
 def get_all_tasks_endpoint(
     page: int = Query(1, ge=1),
-    limit: int = Query(15, ge=1, le=100),
+    limit: int = Query(25, ge=1, le=100),
     sort: str | None = Query(None),
     order: str = Query("desc"),
     status: str | None = Query(None),
@@ -298,7 +298,7 @@ async def delete_task_endpoint(
 def get_task_logs_endpoint(
     task_id: str,
     page: int = Query(1, ge=1),
-    limit: int = Query(15, ge=1, le=100),
+    limit: int = Query(25, ge=1, le=100),
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
     task_service: TaskService = Depends(get_task_service),
@@ -322,7 +322,7 @@ def get_task_logs_endpoint(
 def get_tasks_by_project_endpoint(
     project_id: str,
     page: int = Query(1, ge=1),
-    limit: int = Query(15, ge=1, le=100),
+    limit: int = Query(25, ge=1, le=100),
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
     task_service: TaskService = Depends(get_task_service),
@@ -344,7 +344,7 @@ def get_tasks_by_project_endpoint(
 def get_tasks_by_user_endpoint(
     user_id: str,
     page: int = Query(1, ge=1),
-    limit: int = Query(15, ge=1, le=100),
+    limit: int = Query(25, ge=1, le=100),
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
     task_service: TaskService = Depends(get_task_service),

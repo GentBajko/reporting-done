@@ -73,7 +73,7 @@ async def create_project_endpoint(
 @project_router.get("/", response_model=PaginatedResponse)
 def get_all_projects_endpoint(
     page: int = Query(1, ge=1),
-    limit: int = Query(15, ge=1, le=100),
+    limit: int = Query(25, ge=1, le=100),
     sort: str | None = Query(None),
     order: str = Query("asc"),
     archived: bool | None = Query(None),
@@ -210,7 +210,7 @@ def remove_user_endpoint(
 def get_project_users_endpoint(
     project_id: str,
     page: int = Query(1, ge=1),
-    limit: int = Query(15, ge=1, le=100),
+    limit: int = Query(25, ge=1, le=100),
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),
@@ -232,7 +232,7 @@ def get_project_users_endpoint(
 def get_project_tasks_endpoint(
     project_id: str,
     page: int = Query(1, ge=1),
-    limit: int = Query(15, ge=1, le=100),
+    limit: int = Query(25, ge=1, le=100),
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
     project_service: ProjectService = Depends(get_project_service),

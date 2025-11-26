@@ -149,7 +149,7 @@ def get_all_projects(
         pagination = calculate_pagination(
             total=total,
             page=pagination.current_page or 1,
-            per_page=pagination.limit or 15,
+            per_page=pagination.limit or 25,
         )
 
         pagination.order_by = order_by
@@ -210,7 +210,7 @@ def get_users_projects(
             pagination = calculate_pagination(
                 total=1,
                 page=pagination.current_page or 1,
-                per_page=pagination.limit or 15,
+                per_page=pagination.limit or 25,
             )
 
             associations = assoc_repo.query(
@@ -223,7 +223,7 @@ def get_users_projects(
             project_ids = [assoc.project_id for assoc in associations]
 
             if not project_ids:
-                pagination = calculate_pagination(total=0, page=1, per_page=15)
+                pagination = calculate_pagination(total=0, page=1, per_page=25)
                 return [], pagination
 
             project_repo = Repository(s, Project)
@@ -236,7 +236,7 @@ def get_users_projects(
             )
 
             pagination = calculate_pagination(
-                total=len(projects), page=1, per_page=15
+                total=len(projects), page=1, per_page=25
             )
 
             if not projects:
@@ -347,7 +347,7 @@ def get_user_by_project(
         pagination = calculate_pagination(
             total=total,
             page=pagination.current_page or 1,
-            per_page=pagination.limit or 15,
+            per_page=pagination.limit or 25,
         )
 
         pagination.order_by = order_by
@@ -417,7 +417,7 @@ def get_project_tasks(
         pagination = calculate_pagination(
             total=total,
             page=pagination.current_page or 1,
-            per_page=pagination.limit or 15,
+            per_page=pagination.limit or 25,
         )
 
         pagination.order_by = order_by

@@ -80,7 +80,7 @@ const TasksPage = () => {
     try {
         const queryParams = new URLSearchParams({
             page: page.toString(),
-            limit: "10",
+            limit: "25",
         });
         if (search) {
              queryParams.append("title", search); 
@@ -354,9 +354,9 @@ const TasksPage = () => {
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
-      <div className="bg-white border-b border-gray-200 shadow-sm">
+      <div className="bg-[#002F41] shadow-sm">
         <div className="px-6 py-4">
-          <div className="flex flex-col bg-gray-50 p-4 rounded-lg border border-gray-200 gap-4">
+          <div className="flex flex-col bg-white/10 p-4 rounded-lg border border-white/20 gap-4">
             <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
                 <div className="relative flex-1 min-w-[240px]">
                     <HiOutlineSearch className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
@@ -398,7 +398,7 @@ const TasksPage = () => {
                                 setDateTo("");
                                 setHoursProgressFilter("all");
                             }}
-                            className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2"
+                            className="text-sm text-gray-300 hover:text-white px-3 py-2"
                         >
                             Reset
                         </button>
@@ -407,13 +407,13 @@ const TasksPage = () => {
             </div>
             
             {isFiltersOpen && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2 border-t border-gray-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2 border-t border-white/20">
                     <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase">Status</label>
+                        <label className="text-xs font-medium text-gray-300 uppercase">Status</label>
                         <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
-                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#71c9ed] outline-none"
                         >
                             <option value="all">All Statuses</option>
                             <option value="todo">To Do</option>
@@ -423,11 +423,11 @@ const TasksPage = () => {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase">Project</label>
+                        <label className="text-xs font-medium text-gray-300 uppercase">Project</label>
                         <select
                             value={projectFilter}
                             onChange={(e) => setProjectFilter(e.target.value)}
-                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#71c9ed] outline-none"
                         >
                             <option value="all">All Projects</option>
                             {projects.map(proj => (
@@ -437,11 +437,11 @@ const TasksPage = () => {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase">Assigned To</label>
+                        <label className="text-xs font-medium text-gray-300 uppercase">Assigned To</label>
                         <select
                             value={userFilter}
                             onChange={(e) => setUserFilter(e.target.value)}
-                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#71c9ed] outline-none"
                         >
                             <option value="all">All Users</option>
                             {users.map(u => (
@@ -451,11 +451,11 @@ const TasksPage = () => {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase">Returned</label>
+                        <label className="text-xs font-medium text-gray-300 uppercase">Returned</label>
                         <select
                             value={returnedFilter}
                             onChange={(e) => setReturnedFilter(e.target.value)}
-                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#71c9ed] outline-none"
                         >
                             <option value="all">Any</option>
                             <option value="returned">Returned</option>
@@ -464,11 +464,11 @@ const TasksPage = () => {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase">Progress</label>
+                        <label className="text-xs font-medium text-gray-300 uppercase">Progress</label>
                         <select
                             value={hoursProgressFilter}
                             onChange={(e) => setHoursProgressFilter(e.target.value)}
-                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#71c9ed] outline-none"
                         >
                             <option value="all">Any</option>
                             <option value="not_started">Not Started</option>
@@ -478,22 +478,22 @@ const TasksPage = () => {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase">From Date</label>
+                        <label className="text-xs font-medium text-gray-300 uppercase">From Date</label>
                         <input
                             type="date"
                             value={dateFrom}
                             onChange={(e) => setDateFrom(e.target.value)}
-                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#71c9ed] outline-none"
                         />
                     </div>
 
                     <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase">To Date</label>
+                        <label className="text-xs font-medium text-gray-300 uppercase">To Date</label>
                         <input
                             type="date"
                             value={dateTo}
                             onChange={(e) => setDateTo(e.target.value)}
-                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#71c9ed] outline-none"
                         />
                     </div>
                 </div>

@@ -13,23 +13,43 @@ export default defineConfig({
         target: "http://localhost:8000",
         changeOrigin: true,
       },
-      "/user": {
+      "^/user/": {
         target: "http://localhost:8000",
         changeOrigin: true,
       },
-      "/project": {
+      "^/user\\?": {
         target: "http://localhost:8000",
         changeOrigin: true,
       },
-      "/task": {
+      "^/project/": {
         target: "http://localhost:8000",
         changeOrigin: true,
       },
-      "/log": {
+      "^/project\\?": {
         target: "http://localhost:8000",
         changeOrigin: true,
       },
-      "/event": {
+      "^/task/": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+      },
+      "^/task\\?": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+      },
+      "^/log/": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+      },
+      "^/log\\?": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+      },
+      "^/event/": {
+        target: "http://localhost:8000",
+        changeOrigin: true,
+      },
+      "^/event\\?": {
         target: "http://localhost:8000",
         changeOrigin: true,
       },
@@ -40,7 +60,6 @@ export default defineConfig({
       "^/calendar/": {
         target: "http://localhost:8000",
         changeOrigin: true,
-        rewrite: (path) => path,
       },
       "/dashboard": {
         target: "http://localhost:8000",

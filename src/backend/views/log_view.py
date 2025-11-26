@@ -165,7 +165,7 @@ def get_all_logs(
         pagination = calculate_pagination(
             total=total,
             page=pagination.current_page or 1,
-            per_page=pagination.limit or 15,
+            per_page=pagination.limit or 25,
         )
         pagination.order_by = order_by
 

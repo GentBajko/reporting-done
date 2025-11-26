@@ -194,7 +194,7 @@ def get_all_users(
         pagination = calculate_pagination(
             total=total,
             page=pagination.current_page or 1,
-            per_page=pagination.limit or 15,
+            per_page=pagination.limit or 25,
         )
 
         pagination.order_by = order_by
@@ -244,7 +244,7 @@ def get_user_tasks(
         pagination = calculate_pagination(
             total=total,
             page=pagination.current_page or 1,
-            per_page=pagination.limit or 15,
+            per_page=pagination.limit or 25,
         )
 
         pagination.order_by = order_by
@@ -295,7 +295,7 @@ def get_project_by_user(
         pagination = calculate_pagination(
             total=total,
             page=pagination.current_page or 1,
-            per_page=pagination.limit or 15,
+            per_page=pagination.limit or 25,
         )
 
         pagination.order_by = order_by
@@ -336,7 +336,7 @@ def get_user_logs(
         pagination = calculate_pagination(
             total=total,
             page=pagination.current_page or 1,
-            per_page=pagination.limit or 15,
+            per_page=pagination.limit or 25,
         )
 
         pagination.order_by = order_by

@@ -93,7 +93,7 @@ async def get_current_user_details(
 @user_router.get("/", response_model=PaginatedResponse)
 def get_all_users_endpoint(
     page: int = Query(1, ge=1),
-    limit: int = Query(15, ge=1, le=100),
+    limit: int = Query(25, ge=1, le=100),
     sort: str | None = Query(None),
     order: str = Query("asc"),
     session: ISession = Depends(get_session),
@@ -179,7 +179,7 @@ async def delete_user_endpoint(
 def get_user_projects_endpoint(
     user_id: str,
     page: int = Query(1, ge=1),
-    limit: int = Query(15, ge=1, le=100),
+    limit: int = Query(25, ge=1, le=100),
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
     user_service: UserService = Depends(get_user_service),
@@ -204,7 +204,7 @@ def get_user_projects_endpoint(
 def get_user_tasks_endpoint(
     user_id: str,
     page: int = Query(1, ge=1),
-    limit: int = Query(15, ge=1, le=100),
+    limit: int = Query(25, ge=1, le=100),
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
     user_service: UserService = Depends(get_user_service),
@@ -229,7 +229,7 @@ def get_user_tasks_endpoint(
 def get_user_logs_endpoint(
     user_id: str,
     page: int = Query(1, ge=1),
-    limit: int = Query(15, ge=1, le=100),
+    limit: int = Query(25, ge=1, le=100),
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
     user_service: UserService = Depends(get_user_service),

@@ -111,7 +111,7 @@ const LogsPage = () => {
     try {
       const queryParams = new URLSearchParams({
         page: page.toString(),
-        limit: "15",
+        limit: "25",
       });
       
       if (status !== "all") {
@@ -361,9 +361,9 @@ const LogsPage = () => {
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
-      <div className="bg-white border-b border-gray-200 shadow-sm">
+      <div className="bg-[#002F41] shadow-sm">
         <div className="px-6 py-4">
-          <div className="flex flex-col bg-gray-50 p-4 rounded-lg border border-gray-200 gap-4">
+          <div className="flex flex-col bg-white/10 p-4 rounded-lg border border-white/20 gap-4">
             <div className="flex flex-col md:flex-row gap-4 items-center justify-end">
                 {/* Search was hidden/removed previously as per code analysis. We keep the layout consistent with TasksPage but without search input for now if not needed, OR we just put the Filter button on the right.
                     Wait, the user prompt said "Just leave the controls at the top".
@@ -401,7 +401,7 @@ const LogsPage = () => {
                                 setHoursMin("");
                                 setHoursMax("");
                             }}
-                            className="text-sm text-gray-500 hover:text-gray-700 px-3 py-2"
+                            className="text-sm text-gray-300 hover:text-white px-3 py-2"
                         >
                             Reset
                         </button>
@@ -410,13 +410,13 @@ const LogsPage = () => {
             </div>
             
             {isFiltersOpen && (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2 border-t border-gray-200">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2 border-t border-white/20">
                     <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase">Status</label>
+                        <label className="text-xs font-medium text-gray-300 uppercase">Status</label>
                         <select
                             value={statusFilter}
                             onChange={(e) => setStatusFilter(e.target.value)}
-                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#71c9ed] outline-none"
                         >
                             <option value="all">All Statuses</option>
                             <option value="todo">To Do</option>
@@ -427,11 +427,11 @@ const LogsPage = () => {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase">Project</label>
+                        <label className="text-xs font-medium text-gray-300 uppercase">Project</label>
                         <select
                             value={projectFilter}
                             onChange={(e) => setProjectFilter(e.target.value)}
-                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#71c9ed] outline-none"
                         >
                             <option value="all">All Projects</option>
                             {projects.map(proj => (
@@ -441,11 +441,11 @@ const LogsPage = () => {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase">User</label>
+                        <label className="text-xs font-medium text-gray-300 uppercase">User</label>
                         <select
                             value={userFilter}
                             onChange={(e) => setUserFilter(e.target.value)}
-                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#71c9ed] outline-none"
                         >
                             <option value="all">All Users</option>
                             {users.map(u => (
@@ -455,11 +455,11 @@ const LogsPage = () => {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase">Task</label>
+                        <label className="text-xs font-medium text-gray-300 uppercase">Task</label>
                         <select
                             value={taskFilter}
                             onChange={(e) => setTaskFilter(e.target.value)}
-                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#71c9ed] outline-none"
                         >
                             <option value="all">All Tasks</option>
                             {tasks.map(t => (
@@ -469,27 +469,27 @@ const LogsPage = () => {
                     </div>
 
                     <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase">From Date</label>
+                        <label className="text-xs font-medium text-gray-300 uppercase">From Date</label>
                         <input
                             type="date"
                             value={dateFrom}
                             onChange={(e) => setDateFrom(e.target.value)}
-                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#71c9ed] outline-none"
                         />
                     </div>
 
                     <div className="flex flex-col gap-1">
-                        <label className="text-xs font-medium text-gray-500 uppercase">To Date</label>
+                        <label className="text-xs font-medium text-gray-300 uppercase">To Date</label>
                         <input
                             type="date"
                             value={dateTo}
                             onChange={(e) => setDateTo(e.target.value)}
-                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                            className="text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#71c9ed] outline-none"
                         />
                     </div>
 
                     <div className="flex flex-col gap-1 col-span-1 sm:col-span-2 lg:col-span-2">
-                        <label className="text-xs font-medium text-gray-500 uppercase">Hours Range</label>
+                        <label className="text-xs font-medium text-gray-300 uppercase">Hours Range</label>
                         <div className="flex items-center gap-2">
                             <input
                                 type="number"
@@ -498,9 +498,9 @@ const LogsPage = () => {
                                 onChange={(e) => setHoursMin(e.target.value)}
                                 min="0"
                                 step="0.5"
-                                className="w-full text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                                className="w-full text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#71c9ed] outline-none"
                             />
-                            <span className="text-gray-400">-</span>
+                            <span className="text-gray-300">-</span>
                             <input
                                 type="number"
                                 placeholder="Max"
@@ -508,7 +508,7 @@ const LogsPage = () => {
                                 onChange={(e) => setHoursMax(e.target.value)}
                                 min="0"
                                 step="0.5"
-                                className="w-full text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#002F41] outline-none"
+                                className="w-full text-sm text-gray-900 border border-gray-300 rounded-lg px-3 py-2 bg-white focus:ring-2 focus:ring-[#71c9ed] outline-none"
                             />
                         </div>
                     </div>

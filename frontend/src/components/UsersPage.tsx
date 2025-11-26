@@ -71,7 +71,7 @@ const UsersPage = () => {
     try {
       const queryParams = new URLSearchParams({
         page: page.toString(),
-        limit: "15",
+        limit: "25",
       });
 
       const response = await request<PaginatedResponse<User>>(`/user/?${queryParams.toString()}`);

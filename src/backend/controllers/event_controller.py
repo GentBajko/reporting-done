@@ -93,7 +93,7 @@ async def create_event_endpoint(
 @event_router.get("/", response_model=PaginatedEventResponse)
 def get_all_events_endpoint(
     page: int = Query(1, ge=1),
-    limit: int = Query(15, ge=1, le=100),
+    limit: int = Query(25, ge=1, le=100),
     event_type: str | None = Query(None),
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
@@ -122,7 +122,7 @@ def get_all_events_endpoint(
 @event_router.get("/my", response_model=PaginatedEventResponse)
 def get_my_events_endpoint(
     page: int = Query(1, ge=1),
-    limit: int = Query(15, ge=1, le=100),
+    limit: int = Query(25, ge=1, le=100),
     year: int | None = Query(None, ge=2000, le=2100),
     month: int | None = Query(None, ge=1, le=12),
     session: ISession = Depends(get_session),
@@ -138,7 +138,7 @@ def get_my_events_endpoint(
             items=events,
             total=len(events),
             page=1,
-            per_page=len(events) or 15,
+            per_page=len(events) or 25,
             has_next=False,
             has_prev=False,
         )
@@ -159,7 +159,7 @@ def get_my_events_endpoint(
 def get_user_events_endpoint(
     user_id: str,
     page: int = Query(1, ge=1),
-    limit: int = Query(15, ge=1, le=100),
+    limit: int = Query(25, ge=1, le=100),
     year: int | None = Query(None, ge=2000, le=2100),
     month: int | None = Query(None, ge=1, le=12),
     session: ISession = Depends(get_session),
@@ -177,7 +177,7 @@ def get_user_events_endpoint(
             items=events,
             total=len(events),
             page=1,
-            per_page=len(events) or 15,
+            per_page=len(events) or 25,
             has_next=False,
             has_prev=False,
         )

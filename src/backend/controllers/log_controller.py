@@ -69,7 +69,7 @@ async def create_log_endpoint(
 @log_router.get("/", response_model=PaginatedLogsResponse)
 def get_all_logs_endpoint(
     page: int = Query(1, ge=1),
-    limit: int = Query(15, ge=1, le=100),
+    limit: int = Query(25, ge=1, le=100),
     sort: str | None = Query(None),
     order: str = Query("desc"),
     task_id: str | None = Query(None),
