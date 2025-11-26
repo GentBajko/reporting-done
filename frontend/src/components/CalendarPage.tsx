@@ -1,7 +1,14 @@
-import { useEffect, useState } from "react";
-import { HiPlus } from "react-icons/hi";
+import { useCallback, useEffect, useState } from "react";
+import {
+  HiCalendar,
+  HiChevronLeft,
+  HiChevronRight,
+  HiPlus,
+} from "react-icons/hi";
 import { useAuth } from "../contexts/AuthContext";
+import { useApi } from "../hooks/useApi";
 import Modal from "./Modal";
+import { ToastContainer, useToast } from "./common/Toast";
 
 interface BackendDailyAvailability {
   date: string;
@@ -15,6 +22,25 @@ interface BackendTask {
   description: string;
   timestamp: number;
   status: string | null;
+}
+
+interface BackendEvent {
+  id: string;
+  user_id: string;
+  title: string;
+  description: string | null;
+  event_type: string;
+  event_date: number;
+  created_at: number;
+}
+
+interface BackendEventsResponse {
+  items: BackendEvent[];
+  total: number;
+  page: number;
+  per_page: number;
+  has_next: boolean;
+  has_prev: boolean;
 }
 
 interface BackendUserCalendarResponse {
@@ -44,16 +70,50 @@ interface CalendarEvent {
   originalType?: string;
 }
 
-const getEventTypeClass = (type: CalendarEvent["type"]) => {
+interface CalendarDay {
+  date: Date;
+  dateKey: string;
+  isCurrentMonth: boolean;
+  isToday: boolean;
+  isWeekend: boolean;
+  events: CalendarEvent[];
+}
+
+const daysOfWeekHeaders = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+const getEventTypeColor = (type: CalendarEvent["type"]) => {
+  switch (type) {
+    case "Meeting":
+      return "bg-blue-500 text-white";
+    case "Deadline":
+      return "bg-red-500 text-white";
+    case "Reminder":
+      return "bg-amber-500 text-white";
+    case "Holiday":
+      return "bg-emerald-500 text-white";
+    case "Task":
+      return "bg-purple-500 text-white";
+    case "Office":
+      return "bg-indigo-500 text-white";
+    case "Remote":
+      return "bg-teal-500 text-white";
+    case "Off":
+      return "bg-gray-400 text-white";
+    default:
+      return "bg-gray-500 text-white";
+  }
+};
+
+const getEventTypeDot = (type: CalendarEvent["type"]) => {
   switch (type) {
     case "Meeting":
       return "bg-blue-500";
     case "Deadline":
       return "bg-red-500";
     case "Reminder":
-      return "bg-yellow-500";
+      return "bg-amber-500";
     case "Holiday":
-      return "bg-green-500";
+      return "bg-emerald-500";
     case "Task":
       return "bg-purple-500";
     case "Office":
@@ -69,11 +129,15 @@ const getEventTypeClass = (type: CalendarEvent["type"]) => {
 
 const CalendarPage = () => {
   const { user, isLoadingAuth } = useAuth();
+  const { request } = useApi();
+  const { toasts, addToast, removeToast } = useToast();
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date());
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
 
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventDate, setNewEventDate] = useState("");
@@ -81,7 +145,13 @@ const CalendarPage = () => {
   const [newEventType, setNewEventType] =
     useState<CalendarEvent["type"]>("Meeting");
 
-  const openModal = () => setIsModalOpen(true);
+  const openModal = (presetDate?: string) => {
+    if (presetDate) {
+      setNewEventDate(presetDate);
+    }
+    setIsModalOpen(true);
+  };
+
   const closeModal = () => {
     setIsModalOpen(false);
     setNewEventTitle("");
@@ -100,17 +170,18 @@ const CalendarPage = () => {
       const month = currentDisplayDate.getMonth() + 1;
 
       try {
-        const response = await fetch(
-          `/calendar/${user.id}?year=${year}&month=${month}`
-        );
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data: BackendUserCalendarResponse = await response.json();
+        const [calendarData, eventsData] = await Promise.all([
+          request<BackendUserCalendarResponse>(
+            `/calendar/${user.id}?year=${year}&month=${month}`
+          ),
+          request<BackendEventsResponse>(
+            `/event/my?year=${year}&month=${month}`
+          ),
+        ]);
 
         const fetchedEvents: CalendarEvent[] = [];
 
-        data.availability.forEach((avail) => {
+        calendarData.availability.forEach((avail) => {
           let eventType: CalendarEvent["type"] = "OtherEvent";
           if (avail.status === "Office") eventType = "Office";
           else if (avail.status === "Remote") eventType = "Remote";
@@ -127,14 +198,23 @@ const CalendarPage = () => {
           }
         });
 
-        data.tasks.forEach((task) => {
+        calendarData.tasks.forEach((task) => {
           fetchedEvents.push({
             id: `task-${task.id}`,
             title: task.title,
-
             date: new Date(task.timestamp * 1000).toISOString().split("T")[0],
             type: "Task",
             description: task.description,
+          });
+        });
+
+        eventsData.items.forEach((evt) => {
+          fetchedEvents.push({
+            id: `event-${evt.id}`,
+            title: evt.title,
+            date: new Date(evt.event_date * 1000).toISOString().split("T")[0],
+            type: evt.event_type as CalendarEvent["type"],
+            description: evt.description || undefined,
           });
         });
 
@@ -152,79 +232,354 @@ const CalendarPage = () => {
     };
 
     fetchCalendarData();
-  }, [user?.id, isLoadingAuth, currentDisplayDate]);
+  }, [user?.id, isLoadingAuth, currentDisplayDate, refreshKey]);
 
-  const handleAddEvent = (event: React.FormEvent<HTMLFormElement>) => {
+  const getMonthCalendar = useCallback((): CalendarDay[] => {
+    const year = currentDisplayDate.getFullYear();
+    const month = currentDisplayDate.getMonth();
+    const today = new Date();
+    const todayKey = today.toISOString().split("T")[0];
+
+    const firstDayOfMonth = new Date(year, month, 1);
+    const daysInMonth: CalendarDay[] = [];
+
+    let dayOfWeek = firstDayOfMonth.getDay();
+    let diff =
+      firstDayOfMonth.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
+    const startDate = new Date(year, month, diff);
+
+    for (let i = 0; i < 42; i++) {
+      const day = new Date(startDate);
+      day.setDate(startDate.getDate() + i);
+      const dateKey = day.toISOString().split("T")[0];
+      const dayEvents = events.filter((e) => e.date === dateKey);
+
+      daysInMonth.push({
+        date: new Date(day),
+        dateKey,
+        isCurrentMonth: day.getMonth() === month,
+        isToday: dateKey === todayKey,
+        isWeekend: day.getDay() === 0 || day.getDay() === 6,
+        events: dayEvents,
+      });
+    }
+    return daysInMonth;
+  }, [currentDisplayDate, events]);
+
+  const calendarDays = getMonthCalendar();
+
+  const changeMonth = (offset: number) => {
+    setCurrentDisplayDate((prev) => {
+      const newDate = new Date(prev);
+      newDate.setMonth(prev.getMonth() + offset);
+      return newDate;
+    });
+    setSelectedDay(null);
+  };
+
+  const goToToday = () => {
+    setCurrentDisplayDate(new Date());
+    setSelectedDay(null);
+  };
+
+  const handleAddEvent = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const newEvent: CalendarEvent = {
-      id: String(Date.now()),
-      title: newEventTitle,
-      date: new Date(newEventDate).toISOString(),
-      type: newEventType,
-      description: newEventDescription,
-    };
-    setEvents(
-      [newEvent, ...events].sort(
-        (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-      )
-    );
+    if (!user?.id) return;
+
+    if (newEventType === "Task") {
+      addToast(
+        "Please use the Tasks page to create new tasks with full details.",
+        "info"
+      );
+      closeModal();
+      return;
+    }
+
+    if (newEventType === "Office" || newEventType === "Remote") {
+      try {
+        await request(`/availability/${user.id}/day`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            date: newEventDate,
+            status: newEventType,
+          }),
+        });
+        setRefreshKey((k) => k + 1);
+        addToast(`${newEventType} day saved successfully!`, "success");
+      } catch (e: any) {
+        addToast("Failed to update availability: " + e.message, "error");
+      }
+      closeModal();
+      return;
+    }
+
+    try {
+      await request("/event/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: newEventTitle,
+          description: newEventDescription || null,
+          event_type: newEventType,
+          event_date: newEventDate,
+        }),
+      });
+      setRefreshKey((k) => k + 1);
+      addToast(`${newEventType} event created successfully!`, "success");
+    } catch (e: any) {
+      addToast("Failed to create event: " + e.message, "error");
+    }
     closeModal();
-    alert("Event created! (mock)");
+  };
+
+  const handleDayClick = (day: CalendarDay) => {
+    if (!day.isCurrentMonth) return;
+    setSelectedDay(day);
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center mb-6">
+    <div className="space-y-6 p-4 md:p-6 bg-gray-50 min-h-screen">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <h1 className="text-2xl font-semibold text-gray-800 flex items-center">
+          <HiCalendar className="mr-3 h-7 w-7 text-[#002F41]" />
+          Calendar
+        </h1>
         <button
-          onClick={openModal}
-          className="bg-[#002F41] hover:bg-[#004057] text-white font-semibold py-2 px-4 rounded inline-flex items-center transition duration-150"
+          onClick={() => openModal()}
+          className="bg-[#002F41] hover:bg-[#004057] text-white font-semibold py-2 px-4 rounded-lg inline-flex items-center transition duration-150 shadow-md"
         >
           <HiPlus className="mr-2 h-5 w-5" />
           Add Event
         </button>
       </div>
 
-      <div className="bg-white shadow-md rounded-lg p-6 min-h-[400px] flex items-center justify-center text-gray-400">
-        <p className="text-lg">Full Calendar View Component (Placeholder)</p>
+      <div className="bg-white shadow-xl rounded-lg p-6 md:p-8">
+        <div className="flex justify-between items-center mb-6">
+          <button
+            onClick={() => changeMonth(-1)}
+            className="p-2 rounded-md hover:bg-gray-200 transition text-[#002F41]"
+            aria-label="Previous month"
+          >
+            <HiChevronLeft className="h-6 w-6" />
+          </button>
+          <div className="flex items-center gap-4">
+            <h2 className="text-xl font-semibold text-gray-700">
+              {currentDisplayDate.toLocaleString("default", {
+                month: "long",
+                year: "numeric",
+              })}
+            </h2>
+            <button
+              onClick={goToToday}
+              className="px-3 py-1 text-sm bg-gray-100 hover:bg-gray-200 rounded-md text-gray-600 transition"
+            >
+              Today
+            </button>
+          </div>
+          <button
+            onClick={() => changeMonth(1)}
+            className="p-2 rounded-md hover:bg-gray-200 transition text-[#002F41]"
+            aria-label="Next month"
+          >
+            <HiChevronRight className="h-6 w-6" />
+          </button>
+        </div>
+
+        {isLoading && (
+          <div className="flex items-center justify-center py-16">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#002F41]"></div>
+            <span className="ml-3 text-gray-600">Loading calendar...</span>
+          </div>
+        )}
+
+        {error && (
+          <p className="text-red-600 bg-red-100 p-3 rounded-md text-center">
+            Error: {error}
+          </p>
+        )}
+
+        {!isLoading && !error && (
+          <div className="grid grid-cols-7 gap-px border border-gray-200 bg-gray-200 rounded-lg overflow-hidden">
+            {daysOfWeekHeaders.map((day) => (
+              <div
+                key={day}
+                className="text-center py-3 text-xs font-semibold text-gray-600 uppercase bg-gray-100"
+              >
+                {day}
+              </div>
+            ))}
+            {calendarDays.map((day) => {
+              const hasEvents = day.events.length > 0;
+              const isSelected =
+                selectedDay?.dateKey === day.dateKey && day.isCurrentMonth;
+
+              return (
+                <div
+                  key={day.dateKey}
+                  onClick={() => handleDayClick(day)}
+                  className={`
+                    min-h-[90px] md:min-h-[110px] p-1.5 relative cursor-pointer transition-all duration-150 bg-white
+                    ${!day.isCurrentMonth ? "bg-gray-50 text-gray-400" : ""}
+                    ${day.isWeekend && day.isCurrentMonth ? "bg-gray-50/50" : ""}
+                    ${day.isToday ? "ring-2 ring-inset ring-[#002F41]" : ""}
+                    ${isSelected ? "bg-indigo-50" : ""}
+                    ${day.isCurrentMonth ? "hover:bg-indigo-50/50" : ""}
+                  `}
+                >
+                  <span
+                    className={`
+                      inline-flex items-center justify-center w-7 h-7 text-sm rounded-full
+                      ${day.isToday ? "bg-[#002F41] text-white font-bold" : ""}
+                      ${!day.isCurrentMonth ? "text-gray-400" : "text-gray-700"}
+                    `}
+                  >
+                    {day.date.getDate()}
+                  </span>
+
+                  {day.isCurrentMonth && hasEvents && (
+                    <div className="mt-1 space-y-0.5 overflow-hidden">
+                      {day.events.slice(0, 3).map((evt) => (
+                        <div
+                          key={evt.id}
+                          className={`text-[10px] px-1.5 py-0.5 rounded truncate ${getEventTypeColor(
+                            evt.type
+                          )}`}
+                          title={evt.title}
+                        >
+                          {evt.title}
+                        </div>
+                      ))}
+                      {day.events.length > 3 && (
+                        <div className="text-[10px] text-gray-500 px-1.5">
+                          +{day.events.length - 3} more
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        <div className="mt-6 flex flex-wrap gap-4 justify-center">
+          {[
+            "Meeting",
+            "Deadline",
+            "Reminder",
+            "Holiday",
+            "Task",
+            "Office",
+          ].map((type) => (
+            <div key={type} className="flex items-center gap-2 text-sm">
+              <div
+                className={`w-3 h-3 rounded-full ${getEventTypeDot(
+                  type as CalendarEvent["type"]
+                )}`}
+              />
+              <span className="text-gray-600">{type}</span>
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold text-gray-700">Upcoming Events</h2>
-        {events.length === 0 ? (
-          <div className="bg-white shadow-md rounded-lg p-6 text-center text-gray-500">
-            <p>No events scheduled. Add some!</p>
+      {selectedDay && selectedDay.isCurrentMonth && (
+        <div className="bg-white shadow-xl rounded-lg p-6">
+          <div className="flex justify-between items-center mb-4">
+            <h3 className="text-lg font-semibold text-gray-800">
+              {selectedDay.date.toLocaleDateString("default", {
+                weekday: "long",
+                month: "long",
+                day: "numeric",
+                year: "numeric",
+              })}
+            </h3>
+            <button
+              onClick={() => openModal(selectedDay.dateKey)}
+              className="text-sm px-3 py-1.5 bg-[#002F41] hover:bg-[#004057] text-white rounded-md transition flex items-center gap-1"
+            >
+              <HiPlus className="h-4 w-4" />
+              Add Event
+            </button>
           </div>
+
+          {selectedDay.events.length === 0 ? (
+            <p className="text-gray-500 text-center py-8">
+              No events scheduled for this day.
+            </p>
+          ) : (
+            <ul className="space-y-3">
+              {selectedDay.events.map((evt) => (
+                <li
+                  key={evt.id}
+                  className="flex items-start gap-3 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition"
+                >
+                  <div
+                    className={`w-3 h-3 rounded-full mt-1.5 flex-shrink-0 ${getEventTypeDot(
+                      evt.type
+                    )}`}
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <h4 className="font-medium text-gray-800 truncate">
+                        {evt.title}
+                      </h4>
+                      <span
+                        className={`text-xs px-2 py-0.5 rounded-full ${getEventTypeColor(
+                          evt.type
+                        )}`}
+                      >
+                        {evt.type}
+                      </span>
+                    </div>
+                    {evt.description && (
+                      <p className="text-sm text-gray-600 mt-1">
+                        {evt.description}
+                      </p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+
+      <div className="bg-white shadow-xl rounded-lg p-6">
+        <h2 className="text-lg font-semibold text-gray-800 mb-4">
+          Upcoming Events
+        </h2>
+        {events.length === 0 ? (
+          <p className="text-gray-500 text-center py-8">
+            No events scheduled. Add some!
+          </p>
         ) : (
-          <ul className="bg-white shadow-md rounded-lg divide-y divide-gray-200">
-            {events.map((eventItem) => (
+          <ul className="divide-y divide-gray-200">
+            {events.slice(0, 10).map((evt) => (
               <li
-                key={eventItem.id}
-                className="p-4 hover:bg-gray-50 flex items-start space-x-3"
+                key={evt.id}
+                className="py-3 flex items-start gap-3 hover:bg-gray-50 px-2 rounded transition"
               >
                 <div
-                  className={`mt-1 w-3 h-3 rounded-full ${getEventTypeClass(
-                    eventItem.type
-                  )} flex-shrink-0`}
-                ></div>
-                <div>
-                  <div className="flex items-center justify-between">
-                    <h3 className="text-sm font-semibold text-gray-800">
-                      {eventItem.title}
-                    </h3>
-                    <span className="text-xs text-gray-500">
-                      {new Date(eventItem.date).toLocaleDateString(undefined, {
+                  className={`w-3 h-3 rounded-full mt-1.5 flex-shrink-0 ${getEventTypeDot(
+                    evt.type
+                  )}`}
+                />
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center justify-between gap-2">
+                    <h4 className="font-medium text-gray-800 truncate">
+                      {evt.title}
+                    </h4>
+                    <span className="text-xs text-gray-500 whitespace-nowrap">
+                      {new Date(evt.date).toLocaleDateString("default", {
                         weekday: "short",
                         month: "short",
                         day: "numeric",
                       })}
                     </span>
                   </div>
-                  <p className="text-xs text-gray-600">{eventItem.type}</p>
-                  {eventItem.description && (
-                    <p className="text-xs text-gray-500 mt-1">
-                      {eventItem.description}
-                    </p>
-                  )}
+                  <p className="text-xs text-gray-600">{evt.type}</p>
                 </div>
               </li>
             ))}
@@ -236,10 +591,32 @@ const CalendarPage = () => {
         <form onSubmit={handleAddEvent} className="space-y-4">
           <div>
             <label
+              htmlFor="eventType"
+              className="block text-sm font-medium text-gray-700"
+            >
+              Event Type
+            </label>
+            <select
+              name="eventType"
+              id="eventType"
+              value={newEventType}
+              onChange={(e) =>
+                setNewEventType(e.target.value as CalendarEvent["type"])
+              }
+              className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-gray-900"
+            >
+              <option value="Meeting">Meeting</option>
+              <option value="Deadline">Deadline</option>
+              <option value="Reminder">Reminder</option>
+              <option value="Holiday">Holiday</option>
+            </select>
+          </div>
+          <div>
+            <label
               htmlFor="eventTitle"
               className="block text-sm font-medium text-gray-700"
             >
-              Event Title
+              Title
             </label>
             <input
               type="text"
@@ -248,6 +625,7 @@ const CalendarPage = () => {
               value={newEventTitle}
               onChange={(e) => setNewEventTitle(e.target.value)}
               required
+              placeholder="Enter event title"
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white text-gray-900"
             />
           </div>
@@ -270,28 +648,6 @@ const CalendarPage = () => {
           </div>
           <div>
             <label
-              htmlFor="eventType"
-              className="block text-sm font-medium text-gray-700"
-            >
-              Type
-            </label>
-            <select
-              name="eventType"
-              id="eventType"
-              value={newEventType}
-              onChange={(e) =>
-                setNewEventType(e.target.value as CalendarEvent["type"])
-              }
-              className="mt-1 block w-full px-3 py-2 border border-gray-300 bg-white rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm text-gray-900"
-            >
-              <option value="Meeting">Meeting</option>
-              <option value="Deadline">Deadline</option>
-              <option value="Reminder">Reminder</option>
-              <option value="Holiday">Holiday</option>
-            </select>
-          </div>
-          <div>
-            <label
               htmlFor="eventDescription"
               className="block text-sm font-medium text-gray-700"
             >
@@ -303,10 +659,11 @@ const CalendarPage = () => {
               value={newEventDescription}
               onChange={(e) => setNewEventDescription(e.target.value)}
               rows={3}
+              placeholder="Add a description..."
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white text-gray-900"
             />
           </div>
-          <div className="flex justify-end space-x-3 pt-2">
+          <div className="flex justify-end space-x-3 pt-4 border-t">
             <button
               type="button"
               onClick={closeModal}
@@ -323,6 +680,8 @@ const CalendarPage = () => {
           </div>
         </form>
       </Modal>
+
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
 };

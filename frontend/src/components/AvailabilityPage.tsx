@@ -6,6 +6,7 @@ import {
   HiInformationCircle,
 } from "react-icons/hi";
 import { useAuth } from "../contexts/AuthContext";
+import { ToastContainer, useToast } from "./common/Toast";
 
 const USER_ROLE: "admin" | "user" = "admin";
 const CURRENT_USER_ID: string = "usr-self";
@@ -21,6 +22,7 @@ interface Day {
 
 const AvailabilityPage = () => {
   const { user, isAdmin } = useAuth();
+  const { toasts, addToast, removeToast } = useToast();
   const [selectedUserId, setSelectedUserId] = useState<string>(user?.id || "");
   const [usersForSelector, setUsersForSelector] = useState<
     { id: string; full_name: string }[]
@@ -237,12 +239,12 @@ const AvailabilityPage = () => {
   const handleSubmit = async () => {
     const validation = validateWeeklyOfficeDays();
     if (!validation.isValid) {
-      alert("Validation Error:\n" + validation.errors.join("\n"));
+      addToast(validation.errors[0], "error");
       return;
     }
 
     if (!selectedUserId) {
-      alert("No user selected to save availability for.");
+      addToast("No user selected to save availability for.", "error");
       return;
     }
     setIsSaving(true);
@@ -276,11 +278,11 @@ const AvailabilityPage = () => {
         );
       }
 
-      alert("Availability saved successfully!");
+      addToast("Availability saved successfully!", "success");
     } catch (err: any) {
       console.error("Error saving availability:", err);
       setError(err.message || "Could not save availability.");
-      alert(`Error: ${err.message}`);
+      addToast(err.message || "Could not save availability.", "error");
     } finally {
       setIsSaving(false);
     }
@@ -460,6 +462,8 @@ const AvailabilityPage = () => {
           </>
         )}
       </div>
+
+      <ToastContainer toasts={toasts} removeToast={removeToast} />
     </div>
   );
 };

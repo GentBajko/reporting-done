@@ -1,19 +1,19 @@
 import React, { useEffect, useState } from "react";
 import {
+  HiOutlineClipboardList,
   HiOutlineEye,
+  HiOutlineMail,
   HiOutlinePencil,
   HiOutlineTrash,
-  HiPlus,
-  HiOutlineMail,
   HiOutlineUserGroup,
-  HiOutlineClipboardList,
+  HiPlus,
   HiX
 } from "react-icons/hi";
+import { useApi } from "../hooks/useApi";
+import type { Pagination, Project } from "../types";
 import Modal from "./Modal";
 import DataTable from "./common/DataTable";
 import SearchFilter from "./common/SearchFilter";
-import { useApi } from "../hooks/useApi";
-import { Project, PaginatedResponse, Pagination } from "../types";
 
 const ProjectsPage = () => {
   const { request } = useApi();

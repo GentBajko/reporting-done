@@ -4,6 +4,7 @@ from database.models import (
     Task,
     User,
     Project,
+    Event,
     OfficeAvailability,
     project_developers_table,
 )

@@ -13,7 +13,7 @@ import {
 import Modal from "./Modal";
 import DataTable from "./common/DataTable";
 import { useApi } from "../hooks/useApi";
-import { User, PaginatedResponse, Pagination } from "../types";
+import type { User, PaginatedResponse, Pagination } from "../types";
 
 const getPermissionsRole = (
   permissions: number

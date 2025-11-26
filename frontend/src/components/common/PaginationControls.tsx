@@ -1,6 +1,6 @@
 import React from 'react';
 import { HiChevronLeft, HiChevronRight } from 'react-icons/hi';
-import { Pagination } from '../../types';
+import type { Pagination } from '../../types';
 
 interface PaginationControlsProps {
   pagination: Pagination;

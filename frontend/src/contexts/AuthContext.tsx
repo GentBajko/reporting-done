@@ -58,14 +58,13 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   const login = async (email: string, password: string) => {
-    const formData = new FormData();
-    formData.append("email", email);
-    formData.append("password", password);
-
     try {
-      const response = await fetch("/user/login", {
+      const response = await fetch("/auth/login", {
         method: "POST",
-        body: formData,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
       });
 
       if (response.ok) {
@@ -95,7 +94,9 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
 
   const logout = async () => {
     try {
-      const response = await fetch("/user/logout", {});
+      const response = await fetch("/auth/logout", {
+        method: "POST",
+      });
       if (!response.ok && response.status !== 302) {
         if (response.status >= 400) {
           const errorData = await response

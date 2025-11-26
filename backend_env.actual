@@ -1,8 +1,8 @@
 API_PORT=8000
 API_HOST=0.0.0.0
 API_URL=http://localhost:8000
-EMAIL=
-EMAIL_HOST=
+EMAIL=dev@businessdone.co
+EMAIL_HOST=smtp.gmail.com
 EMAIL_PASSWORD=
 DB_USER=root
 DB_PASSWORD=password
@@ -11,5 +11,6 @@ DB_PORT=3306
 DB_NAME=reports_db
 LOG_LEVEL=INFO
 ENV=dev
-SECRET_KEY=change_me_in_prod
+SECRET_KEY=dev_secret_key_12345
 MYSQL_ROOT_PASSWORD=password
+

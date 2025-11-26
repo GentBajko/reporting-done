@@ -11,6 +11,7 @@ import {
 } from "react-icons/hi";
 import { Link } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
+import { useApi } from "../hooks/useApi";
 
 interface DashboardSummaryData {
   active_projects_count: number;
@@ -123,9 +124,8 @@ const QuickLinkButton = ({
 
 const HomePage = () => {
   const { user } = useAuth();
-  const [summaryData, setSummaryData] = useState<DashboardSummaryData | null>(
-    null
-  );
+  const { request } = useApi();
+  const [summaryData, setSummaryData] = useState<DashboardSummaryData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -134,11 +134,7 @@ const HomePage = () => {
       setIsLoading(true);
       setError(null);
       try {
-        const response = await fetch("/api/dashboard/summary");
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-        const data: DashboardSummaryData = await response.json();
+        const data = await request<DashboardSummaryData>("/api/dashboard/summary");
         setSummaryData(data);
       } catch (e: any) {
         console.error("Failed to fetch dashboard summary:", e);

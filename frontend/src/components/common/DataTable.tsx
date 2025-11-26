@@ -1,5 +1,5 @@
 import React from 'react';
-import { Pagination } from '../../types';
+import type { Pagination } from '../../types';
 import PaginationControls from './PaginationControls';
 
 interface Column<T> {

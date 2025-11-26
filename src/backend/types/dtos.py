@@ -145,6 +145,32 @@ class AvailabilityDTO(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class EventCreateDTO(BaseModel):
+    title: str = Field(min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=1000)
+    event_type: str = Field(min_length=1, max_length=50)
+    event_date: str
+
+
+class EventUpdateDTO(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=255)
+    description: str | None = Field(default=None, max_length=1000)
+    event_type: str | None = Field(default=None, min_length=1, max_length=50)
+    event_date: str | None = None
+
+
+class EventDTO(BaseModel):
+    id: str
+    user_id: str
+    title: str
+    description: str | None = None
+    event_type: str
+    event_date: int
+    created_at: int
+    
+    model_config = {"from_attributes": True}
+
+
 class MonthlyAvailabilityDTO(BaseModel):
     user_id: str
     user_name: str

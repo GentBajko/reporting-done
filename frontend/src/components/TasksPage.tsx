@@ -13,7 +13,7 @@ import Modal from "./Modal";
 import DataTable from "./common/DataTable";
 import SearchFilter from "./common/SearchFilter";
 import { useApi } from "../hooks/useApi";
-import { Task, Project, User, Pagination, Log } from "../types";
+import type { Task, Project, User, Pagination, Log, PaginatedResponse } from "../types";
 
 const TasksPage = () => {
   const { request } = useApi();

@@ -16,6 +16,7 @@ from backend.controllers.log_controller import log_router
 from backend.controllers.auth_controller import auth_router
 from backend.controllers.task_controller import task_router
 from backend.controllers.user_controller import user_router
+from backend.controllers.event_controller import event_router
 from backend.controllers.project_controller import project_router
 from backend.controllers.dashboard_controller import dashboard_router
 from backend.controllers.healthcheck_controller import healthcheck_router
@@ -163,6 +164,7 @@ app.include_router(user_router, tags=["User"])
 app.include_router(project_router, tags=["Project"])
 app.include_router(task_router, tags=["Task"])
 app.include_router(log_router, tags=["Log"])
+app.include_router(event_router, tags=["Event"])
 app.include_router(dashboard_router, tags=["Dashboard"])
 app.include_router(availability_router, tags=["Availability"])
 app.include_router(new_calendar_router, tags=["Calendar"])

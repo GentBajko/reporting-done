@@ -15,7 +15,7 @@ import Modal from "./Modal";
 import DataTable from "./common/DataTable";
 import SearchFilter from "./common/SearchFilter";
 import { useApi } from "../hooks/useApi";
-import { Log, Task, Pagination, PaginatedResponse } from "../types";
+import type { Log, Task, Pagination, PaginatedResponse } from "../types";
 
 const getLogStatusClass = (task_status: string) => {
   switch (task_status?.toLowerCase()) {

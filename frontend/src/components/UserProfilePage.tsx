@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { HiCheck, HiPencil, HiUserCircle, HiX } from "react-icons/hi";
 import { useAuth } from "../contexts/AuthContext";
+import { useApi } from "../hooks/useApi";
 
 interface UserProfileData {
   id: string;
@@ -15,7 +16,8 @@ interface EditProfileFormData {
 }
 
 const UserProfilePage = () => {
-  const { user, isAdmin, token } = useAuth();
+  const { user } = useAuth();
+  const { request } = useApi();
   const [profileData, setProfileData] = useState<UserProfileData | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editFormData, setEditFormData] = useState<EditProfileFormData>({});
@@ -29,19 +31,7 @@ const UserProfilePage = () => {
       setError(null);
       const fetchProfileData = async () => {
         try {
-          const response = await fetch(`/user/${user.id}`, {
-            headers: {
-              Authorization: `Bearer ${token}`,
-              Accept: "application/json",
-            },
-          });
-          if (!response.ok) {
-            const errData = await response
-              .json()
-              .catch(() => ({ detail: `Error: ${response.status}` }));
-            throw new Error(errData.detail || `Failed to fetch profile data`);
-          }
-          const data: UserProfileData = await response.json();
+          const data = await request<UserProfileData>(`/user/${user.id}`);
           setProfileData(data);
         } catch (err: any) {
           console.error("Error fetching profile data:", err);
@@ -55,7 +45,7 @@ const UserProfilePage = () => {
       setIsLoading(false);
       setError("User not authenticated. Please log in.");
     }
-  }, [user?.id, token]);
+  }, [user?.id]);
 
   useEffect(() => {
     if (profileData && isEditing) {
@@ -109,24 +99,11 @@ const UserProfilePage = () => {
     setError(null);
 
     try {
-      const response = await fetch(`/user/${user.id}`, {
+      const updatedProfile = await request<UserProfileData>(`/user/${user.id}`, {
         method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(changedData),
       });
-
-      if (!response.ok) {
-        const errorData = await response
-          .json()
-          .catch(() => ({ detail: "Update failed. Unknown error." }));
-        throw new Error(
-          errorData.detail || `HTTP error! Status: ${response.status}`
-        );
-      }
-      const updatedProfile: UserProfileData = await response.json();
       setProfileData(updatedProfile);
       setIsEditing(false);
       alert("Profile updated successfully!");
