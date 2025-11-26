@@ -12,6 +12,8 @@ class Event:
         description: Optional[str]
         event_type: str
         event_date: int
+        start_time: Optional[str]
+        end_time: Optional[str]
         created_at: int
 
     def __init__(
@@ -21,6 +23,8 @@ class Event:
         event_type: str,
         event_date: int,
         description: Optional[str] = None,
+        start_time: Optional[str] = None,
+        end_time: Optional[str] = None,
         created_at: Optional[int] = None,
         id: Optional[str] = None,
     ):
@@ -30,6 +34,8 @@ class Event:
         self.description = description
         self.event_type = event_type
         self.event_date = event_date
+        self.start_time = start_time
+        self.end_time = end_time
         self.created_at = created_at or int(datetime.now().timestamp())
 
     @property
@@ -56,6 +62,8 @@ class Event:
             "description": self.description,
             "event_type": self.event_type,
             "event_date": self.event_date,
+            "start_time": self.start_time,
+            "end_time": self.end_time,
             "created_at": self.created_at,
         }
 
@@ -68,6 +76,8 @@ class Event:
             description=data.get("description"),
             event_type=data["event_type"],
             event_date=data["event_date"],
+            start_time=data.get("start_time"),
+            end_time=data.get("end_time"),
             created_at=data.get("created_at"),
         )
 

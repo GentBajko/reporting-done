@@ -30,7 +30,16 @@ interface BackendEvent {
   description: string | null;
   event_type: string;
   event_date: number;
+  start_time: string | null;
+  end_time: string | null;
   created_at: number;
+}
+
+interface ViewableUser {
+  id: string;
+  full_name: string;
+  email: string;
+  can_edit: boolean;
 }
 
 interface BackendEventsResponse {
@@ -49,6 +58,7 @@ interface BackendUserCalendarResponse {
   month: number;
   availability: BackendDailyAvailability[];
   tasks: BackendTask[];
+  can_edit: boolean;
 }
 
 interface CalendarEvent {
@@ -67,6 +77,8 @@ interface CalendarEvent {
     | "OtherEvent";
   description?: string;
   originalType?: string;
+  startTime?: string;
+  endTime?: string;
 }
 
 interface CalendarDay {
@@ -137,12 +149,18 @@ const CalendarPage = () => {
   const [currentDisplayDate, setCurrentDisplayDate] = useState(new Date());
   const [refreshKey, setRefreshKey] = useState(0);
   const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
+  
+  const [viewableUsers, setViewableUsers] = useState<ViewableUser[]>([]);
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null);
+  const [canEditCalendar, setCanEditCalendar] = useState(true);
 
   const [newEventTitle, setNewEventTitle] = useState("");
   const [newEventDate, setNewEventDate] = useState("");
   const [newEventDescription, setNewEventDescription] = useState("");
   const [newEventType, setNewEventType] =
     useState<CalendarEvent["type"]>("Meeting");
+  const [newEventStartTime, setNewEventStartTime] = useState("");
+  const [newEventEndTime, setNewEventEndTime] = useState("");
 
   const openModal = (presetDate?: string) => {
     if (presetDate) {
@@ -157,26 +175,51 @@ const CalendarPage = () => {
     setNewEventDate("");
     setNewEventDescription("");
     setNewEventType("Meeting");
+    setNewEventStartTime("");
+    setNewEventEndTime("");
   };
 
   useEffect(() => {
     if (isLoadingAuth || !user?.id) return;
+    
+    const fetchViewableUsers = async () => {
+      try {
+        const users = await request<ViewableUser[]>("/calendar/viewable-users");
+        setViewableUsers(users);
+        if (!selectedUserId) {
+          setSelectedUserId(user.id);
+        }
+      } catch (e: any) {
+        console.error("Failed to fetch viewable users:", e);
+      }
+    };
+    
+    fetchViewableUsers();
+  }, [user?.id, isLoadingAuth]);
+
+  useEffect(() => {
+    if (isLoadingAuth || !user?.id || !selectedUserId) return;
 
     const fetchCalendarData = async () => {
       setIsLoading(true);
       setError(null);
       const year = currentDisplayDate.getFullYear();
       const month = currentDisplayDate.getMonth() + 1;
+      
+      const isOwnCalendar = selectedUserId === user.id;
+      const eventsEndpoint = isOwnCalendar
+        ? `/event/my?year=${year}&month=${month}`
+        : `/event/user/${selectedUserId}?year=${year}&month=${month}`;
 
       try {
         const [calendarData, eventsData] = await Promise.all([
           request<BackendUserCalendarResponse>(
-            `/calendar/${user.id}?year=${year}&month=${month}`
+            `/calendar/${selectedUserId}?year=${year}&month=${month}`
           ),
-          request<BackendEventsResponse>(
-            `/event/my?year=${year}&month=${month}`
-          ),
+          request<BackendEventsResponse>(eventsEndpoint),
         ]);
+        
+        setCanEditCalendar(calendarData.can_edit);
 
         const fetchedEvents: CalendarEvent[] = [];
 
@@ -188,7 +231,7 @@ const CalendarPage = () => {
 
           if (eventType !== "OtherEvent" && eventType !== "Remote") {
             fetchedEvents.push({
-              id: `avail-${avail.date}-${user.id}`,
+              id: `avail-${avail.date}-${selectedUserId}`,
               title: `${avail.status} Day`,
               date: avail.date,
               type: eventType,
@@ -214,13 +257,23 @@ const CalendarPage = () => {
             date: new Date(evt.event_date * 1000).toISOString().split("T")[0],
             type: evt.event_type as CalendarEvent["type"],
             description: evt.description || undefined,
+            startTime: evt.start_time || undefined,
+            endTime: evt.end_time || undefined,
           });
         });
 
         setEvents(
-          fetchedEvents.sort(
-            (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-          )
+          fetchedEvents.sort((a, b) => {
+            const dateCompare = new Date(a.date).getTime() - new Date(b.date).getTime();
+            if (dateCompare !== 0) return dateCompare;
+            
+            if (a.startTime && b.startTime) {
+              return a.startTime.localeCompare(b.startTime);
+            }
+            if (a.startTime) return -1;
+            if (b.startTime) return 1;
+            return 0;
+          })
         );
       } catch (e: any) {
         console.error("Failed to fetch calendar data:", e);
@@ -231,7 +284,7 @@ const CalendarPage = () => {
     };
 
     fetchCalendarData();
-  }, [user?.id, isLoadingAuth, currentDisplayDate, refreshKey]);
+  }, [user?.id, isLoadingAuth, currentDisplayDate, refreshKey, selectedUserId]);
 
   const getMonthCalendar = useCallback((): CalendarDay[] => {
     const year = currentDisplayDate.getFullYear();
@@ -242,8 +295,8 @@ const CalendarPage = () => {
     const firstDayOfMonth = new Date(year, month, 1);
     const daysInMonth: CalendarDay[] = [];
 
-    let dayOfWeek = firstDayOfMonth.getDay();
-    let diff =
+    const dayOfWeek = firstDayOfMonth.getDay();
+    const diff =
       firstDayOfMonth.getDate() - (dayOfWeek === 0 ? 6 : dayOfWeek - 1);
     const startDate = new Date(year, month, diff);
 
@@ -322,6 +375,8 @@ const CalendarPage = () => {
           description: newEventDescription || null,
           event_type: newEventType,
           event_date: newEventDate,
+          start_time: newEventStartTime || null,
+          end_time: newEventEndTime || null,
         }),
       });
       setRefreshKey((k) => k + 1);
@@ -371,6 +426,26 @@ const CalendarPage = () => {
                 Today
               </button>
           </div>
+          
+          {viewableUsers.length > 1 && (
+            <div className="flex items-center space-x-2">
+              <label htmlFor="userSelect" className="text-xs text-gray-600">
+                Viewing:
+              </label>
+              <select
+                id="userSelect"
+                value={selectedUserId || ""}
+                onChange={(e) => setSelectedUserId(e.target.value)}
+                className="text-xs px-2 py-1 border border-gray-300 rounded bg-white text-gray-700 focus:outline-none focus:ring-1 focus:ring-[#002F41]"
+              >
+                {viewableUsers.map((u) => (
+                  <option key={u.id} value={u.id}>
+                    {u.full_name} {u.id === user?.id ? "(You)" : ""} {!u.can_edit && u.id !== user?.id ? "(View only)" : ""}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
         
         {/* Grid Header */}
@@ -497,7 +572,16 @@ const CalendarPage = () => {
                     </p>
                     ) : (
                     <ul className="space-y-1">
-                        {selectedDay.events.map((evt) => (
+                        {selectedDay.events
+                          .sort((a, b) => {
+                            if (a.startTime && b.startTime) {
+                              return a.startTime.localeCompare(b.startTime);
+                            }
+                            if (a.startTime) return -1;
+                            if (b.startTime) return 1;
+                            return 0;
+                          })
+                          .map((evt) => (
                         <li
                             key={evt.id}
                             className="flex items-start gap-2 p-1.5 rounded border border-gray-100 bg-gray-50"
@@ -510,6 +594,11 @@ const CalendarPage = () => {
                             <div className="flex-1 min-w-0">
                             <div className="flex items-center justify-between gap-1">
                                 <h4 className="font-medium text-gray-800 truncate text-xs">
+                                {evt.startTime && (
+                                  <span className="text-gray-500 mr-1">
+                                    {evt.startTime}{evt.endTime && ` - ${evt.endTime}`}
+                                  </span>
+                                )}
                                 {evt.title}
                                 </h4>
                                 <span
@@ -564,6 +653,7 @@ const CalendarPage = () => {
                                 month: "short",
                                 day: "numeric",
                                 })}
+                                {evt.startTime && ` ${evt.startTime}`}
                             </span>
                             </div>
                         </div>
@@ -577,7 +667,9 @@ const CalendarPage = () => {
         )}
       </div>
       
-      <FloatingActionButton onClick={() => openModal()} title="Add Event" />
+      {canEditCalendar && (
+        <FloatingActionButton onClick={() => openModal()} title="Add Event" />
+      )}
 
       <Modal isOpen={isModalOpen} onClose={closeModal} title="Add New Event">
         <form onSubmit={handleAddEvent} className="space-y-4">
@@ -637,6 +729,40 @@ const CalendarPage = () => {
               required
               className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white text-gray-900"
             />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label
+                htmlFor="eventStartTime"
+                className="block text-sm font-medium text-gray-700"
+              >
+                Start Time (Optional)
+              </label>
+              <input
+                type="time"
+                name="eventStartTime"
+                id="eventStartTime"
+                value={newEventStartTime}
+                onChange={(e) => setNewEventStartTime(e.target.value)}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white text-gray-900"
+              />
+            </div>
+            <div>
+              <label
+                htmlFor="eventEndTime"
+                className="block text-sm font-medium text-gray-700"
+              >
+                End Time (Optional)
+              </label>
+              <input
+                type="time"
+                name="eventEndTime"
+                id="eventEndTime"
+                value={newEventEndTime}
+                onChange={(e) => setNewEventEndTime(e.target.value)}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm bg-white text-gray-900"
+              />
+            </div>
           </div>
           <div>
             <label

@@ -39,6 +39,8 @@ class EventService:
                 description=data.description,
                 event_type=data.event_type,
                 event_date=event_date_ts,
+                start_time=data.start_time,
+                end_time=data.end_time,
                 created_at=int(datetime.now().timestamp()),
             )
             

@@ -13,6 +13,8 @@ event_table = Table(
     Column("description", String(1000), nullable=True),
     Column("event_type", String(50), nullable=False),
     Column("event_date", BigInteger, nullable=False),
+    Column("start_time", String(5), nullable=True),
+    Column("end_time", String(5), nullable=True),
     Column("created_at", BigInteger, nullable=False),
 )
 

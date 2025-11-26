@@ -150,6 +150,8 @@ class EventCreateDTO(BaseModel):
     description: str | None = Field(default=None, max_length=1000)
     event_type: str = Field(min_length=1, max_length=50)
     event_date: str
+    start_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
+    end_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
 
 
 class EventUpdateDTO(BaseModel):
@@ -157,6 +159,8 @@ class EventUpdateDTO(BaseModel):
     description: str | None = Field(default=None, max_length=1000)
     event_type: str | None = Field(default=None, min_length=1, max_length=50)
     event_date: str | None = None
+    start_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
+    end_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
 
 
 class EventDTO(BaseModel):
@@ -166,6 +170,8 @@ class EventDTO(BaseModel):
     description: str | None = None
     event_type: str
     event_date: int
+    start_time: str | None = None
+    end_time: str | None = None
     created_at: int
     
     model_config = {"from_attributes": True}

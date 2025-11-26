@@ -16,11 +16,41 @@ from backend.dependencies import (
     get_availability_service,
 )
 from core.models.user import User
+from core.models.project_user import ProjectUser
 from core.models.office_availability import OfficeAvailability
 from database.repositories.repository import Repository
 
 
 new_calendar_router = APIRouter(prefix="/calendar")
+
+
+def can_view_calendar(current_user: User, target_user_id: str, session) -> bool:
+    if current_user.id == target_user_id:
+        return True
+    if is_admin(current_user):
+        return True
+    
+    project_user_repo = Repository(session, ProjectUser)
+    current_user_projects = project_user_repo.query(user_id=current_user.id)
+    current_project_ids = {pu.project_id for pu in current_user_projects}
+    
+    target_user_projects = project_user_repo.query(user_id=target_user_id)
+    target_project_ids = {pu.project_id for pu in target_user_projects}
+    
+    return bool(current_project_ids & target_project_ids)
+
+
+def can_edit_calendar(current_user: User, target_user_id: str) -> bool:
+    if current_user.id == target_user_id:
+        return True
+    return is_admin(current_user)
+
+
+class ViewableUserResponse(BaseModel):
+    id: str
+    full_name: str
+    email: str
+    can_edit: bool
 
 
 class DailyAvailabilityResponse(BaseModel):
@@ -44,6 +74,7 @@ class UserCalendarResponse(BaseModel):
     month: int
     availability: Sequence[DailyAvailabilityResponse]
     tasks: Sequence[TaskResponse]
+    can_edit: bool
 
 
 class CalendarUpdateRequest(BaseModel):
@@ -58,6 +89,52 @@ class CalendarUpdateResponse(BaseModel):
     saved_office_days: int
 
 
+@new_calendar_router.get("/viewable-users", response_model=Sequence[ViewableUserResponse])
+def get_viewable_users_endpoint(
+    session: ISession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+):
+    with session as s:
+        user_repo = Repository(s, User)
+        
+        if is_admin(current_user):
+            all_users = user_repo.query()
+            return [
+                ViewableUserResponse(
+                    id=u.id,
+                    full_name=u.full_name,
+                    email=u.email,
+                    can_edit=True,
+                )
+                for u in all_users
+            ]
+        
+        project_user_repo = Repository(s, ProjectUser)
+        current_user_project_memberships = project_user_repo.query(user_id=current_user.id)
+        current_project_ids = {pu.project_id for pu in current_user_project_memberships}
+        
+        viewable_user_ids: set[str] = {current_user.id}
+        for project_id in current_project_ids:
+            project_members = project_user_repo.query(project_id=project_id)
+            for pm in project_members:
+                viewable_user_ids.add(pm.user_id)
+        
+        viewable_users = []
+        for uid in viewable_user_ids:
+            user = user_repo.get(uid)
+            if user:
+                viewable_users.append(
+                    ViewableUserResponse(
+                        id=user.id,
+                        full_name=user.full_name,
+                        email=user.email,
+                        can_edit=(user.id == current_user.id),
+                    )
+                )
+        
+        return viewable_users
+
+
 @new_calendar_router.get("/{user_id}", response_model=UserCalendarResponse)
 def get_user_calendar_endpoint(
     user_id: str,
@@ -67,8 +144,9 @@ def get_user_calendar_endpoint(
     current_user: User = Depends(get_current_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
 ):
-    if current_user.id != user_id and not is_admin(current_user):
-        raise HTTPException(status_code=403, detail="Not authorized to view this calendar")
+    with session as s:
+        if not can_view_calendar(current_user, user_id, s):
+            raise HTTPException(status_code=403, detail="Not authorized to view this calendar")
     
     result = availability_service.get_user_availability(user_id, year, month, session)
     
@@ -120,6 +198,7 @@ def get_user_calendar_endpoint(
             )
             for t in month_tasks
         ],
+        can_edit=can_edit_calendar(current_user, user_id),
     )
 
 
@@ -133,7 +212,7 @@ def update_user_calendar_endpoint(
     current_user: User = Depends(get_current_user),
     availability_service: AvailabilityService = Depends(get_availability_service),
 ):
-    if current_user.id != user_id and not is_admin(current_user):
+    if not can_edit_calendar(current_user, user_id):
         raise HTTPException(status_code=403, detail="Not authorized to update this calendar")
     
     try:
