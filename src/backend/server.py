@@ -1,14 +1,14 @@
 import secrets
+from contextlib import asynccontextmanager
 
 from loguru import logger
 from fastapi import FastAPI, Request, Response
-from fastapi.responses import RedirectResponse
-from fastapi.concurrency import asynccontextmanager
-from apscheduler.triggers.cron import CronTrigger
+from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+from apscheduler.triggers.cron import CronTrigger
 
 from config.env import ENV
 from backend.views.log_view import get_projects_with_recent_logs
@@ -21,14 +21,22 @@ from backend.controllers.dashboard_controller import dashboard_router
 from backend.controllers.healthcheck_controller import healthcheck_router
 from backend.controllers.availability_controller import availability_router
 from backend.controllers.new_calendar_controller import new_calendar_router
+from backend.exceptions import (
+    BackendException,
+    ValidationError,
+    AuthenticationError,
+    AuthorizationError,
+    NotFoundError,
+)
+
 
 scheduler = AsyncIOScheduler()
 
 
-async def scheduled_get_projects_with_recent_logs():
+async def scheduled_get_projects_with_recent_logs() -> None:
     try:
         await get_projects_with_recent_logs()
-        logger.info("Emails send to clients successfully.")
+        logger.info("Emails sent to clients successfully.")
     except Exception as e:
         logger.error(f"Error running scheduled task: {e}")
 
@@ -36,7 +44,7 @@ async def scheduled_get_projects_with_recent_logs():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     trigger = CronTrigger(hour=23, minute=57)
-
+    
     scheduler.add_job(
         scheduled_get_projects_with_recent_logs,
         trigger,
@@ -44,26 +52,29 @@ async def lifespan(app: FastAPI):
         name="Daily Project Logs Retrieval and Email Sending",
         replace_existing=True,
     )
-
+    
     scheduler.start()
     logger.info("APScheduler started and job added.")
-
+    
     yield
+    
+    scheduler.shutdown()
 
 
-app = FastAPI(title="Reports Done API", version="0.1.0")
+app = FastAPI(
+    title="Reports Done API",
+    version="0.1.0",
+    lifespan=lifespan,
+)
 
 
 class LogRequestMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
         logger.debug(
-            f"Request: {request.method} {request.url} Headers: {request.headers}"
+            f"Request: {request.method} {request.url} Headers: {dict(request.headers)}"
         )
         response: Response = await call_next(request)
         return response
-
-
-app.add_middleware(LogRequestMiddleware)
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
@@ -74,25 +85,58 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         return response
 
 
-class AuthRedirectMiddleware(BaseHTTPMiddleware):
+class AuthCheckMiddleware(BaseHTTPMiddleware):
+    PUBLIC_PATHS = frozenset([
+        "/healthcheck",
+        "/health",
+        "/auth/login",
+        "/auth/check",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+    ])
+    
     async def dispatch(self, request: Request, call_next):
-        public_paths = [
-            "/user/login",
-            "/healthcheck",
-        ]
-
-        if any(request.url.path.startswith(path) for path in public_paths):
+        path = request.url.path
+        
+        if any(path.startswith(p) for p in self.PUBLIC_PATHS):
             return await call_next(request)
-
+        
         user_id = request.session.get("user_id")
         if not user_id:
-            return RedirectResponse(url="/user/login")
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Not authenticated"},
+            )
+        
+        return await call_next(request)
 
-        response = await call_next(request)
-        return response
+
+@app.exception_handler(BackendException)
+async def backend_exception_handler(request: Request, exc: BackendException):
+    status_code = 500
+    
+    if isinstance(exc, ValidationError):
+        status_code = 400
+    elif isinstance(exc, AuthenticationError):
+        status_code = 401
+    elif isinstance(exc, AuthorizationError):
+        status_code = 403
+    elif isinstance(exc, NotFoundError):
+        status_code = 404
+    
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "code": exc.code,
+            "message": str(exc),
+            "details": exc.details,
+        },
+    )
 
 
-app.add_middleware(AuthRedirectMiddleware)
+app.add_middleware(LogRequestMiddleware)
+app.add_middleware(AuthCheckMiddleware)
 app.add_middleware(CSRFMiddleware)
 
 app.add_middleware(
@@ -114,11 +158,11 @@ app.add_middleware(
 )
 
 app.include_router(healthcheck_router, tags=["Health Check"])
+app.include_router(auth_router, tags=["Auth"])
 app.include_router(user_router, tags=["User"])
 app.include_router(project_router, tags=["Project"])
 app.include_router(task_router, tags=["Task"])
 app.include_router(log_router, tags=["Log"])
 app.include_router(dashboard_router, tags=["Dashboard"])
 app.include_router(availability_router, tags=["Availability"])
-app.include_router(new_calendar_router, tags=["New Calendar"])
-app.include_router(auth_router, tags=["Auth"])
+app.include_router(new_calendar_router, tags=["Calendar"])

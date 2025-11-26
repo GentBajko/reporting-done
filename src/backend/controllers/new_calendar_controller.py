@@ -1,58 +1,53 @@
-from fastapi import Query, Depends, APIRouter, HTTPException, Body
-from loguru import logger
-from pydantic import BaseModel
-from typing import List
-from datetime import datetime, date
+from typing import Sequence
+from datetime import date, datetime
 import calendar
 
+from fastapi import Query, Depends, APIRouter, HTTPException, Body
+from pydantic import BaseModel, Field
+
+from backend.services import AvailabilityService
+from backend.types.dtos import AvailabilityDTO
+from backend.types.result import Err
+from backend.protocols.session import ISession
+from backend.dependencies import (
+    get_session,
+    get_current_user,
+    is_admin,
+    get_availability_service,
+)
 from core.models.user import User
 from core.models.office_availability import OfficeAvailability
-from backend.dependencies import get_session
-from backend.dependencies.auth import is_admin, get_current_user
-from database.interfaces.session import ISession
-from backend.models.calendar_page import PydanticBackendUserCalendarResponse
-from backend.views.new_calendar_view import get_new_calendar_data_for_user
+from database.repositories.repository import Repository
+
 
 new_calendar_router = APIRouter(prefix="/calendar")
 
 
-@new_calendar_router.get(
-    "/{user_id}",
-    response_model=PydanticBackendUserCalendarResponse,
-    summary="Get calendar data for a user by month",
-)
-def get_user_calendar_endpoint(
-    user_id: str,
-    year: int = Query(..., description="Year for the calendar data"),
-    month: int = Query(
-        ..., ge=1, le=12, description="Month for the calendar data (1-12)"
-    ),
-    session: ISession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-):
-    if not (current_user.id == user_id or is_admin(current_user)):
-        raise HTTPException(
-            status_code=403,
-            detail="Not authorized to view this user's calendar data",
-        )
+class DailyAvailabilityResponse(BaseModel):
+    date: str
+    status: str
+    day_of_week: int
 
-    try:
-        calendar_data = get_new_calendar_data_for_user(
-            session=session, user_id=user_id, year=year, month=month
-        )
-        return calendar_data
-    except ValueError as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    except Exception as e:
-        logger.error(f"Error fetching calendar data: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail="An unexpected error occurred while fetching calendar data.",
-        )
+
+class TaskResponse(BaseModel):
+    id: str
+    title: str
+    description: str
+    timestamp: int
+    status: str | None = None
+
+
+class UserCalendarResponse(BaseModel):
+    user_id: str
+    user_name: str
+    year: int
+    month: int
+    availability: Sequence[DailyAvailabilityResponse]
+    tasks: Sequence[TaskResponse]
 
 
 class CalendarUpdateRequest(BaseModel):
-    office_dates: List[str]  # List of YYYY-MM-DD dates
+    office_dates: Sequence[str]
 
 
 class CalendarUpdateResponse(BaseModel):
@@ -63,95 +58,105 @@ class CalendarUpdateResponse(BaseModel):
     saved_office_days: int
 
 
-@new_calendar_router.post(
-    "/{user_id}",
-    response_model=CalendarUpdateResponse,
-    summary="Update calendar availability for a user"
-)
+@new_calendar_router.get("/{user_id}", response_model=UserCalendarResponse)
+def get_user_calendar_endpoint(
+    user_id: str,
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
+    session: ISession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    availability_service: AvailabilityService = Depends(get_availability_service),
+):
+    if current_user.id != user_id and not is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Not authorized to view this calendar")
+    
+    result = availability_service.get_user_availability(user_id, year, month, session)
+    
+    if isinstance(result, Err):
+        raise HTTPException(status_code=404, detail=result.error)
+    
+    dto = result.value
+    
+    from backend.services.task_service import TaskService
+    from backend.dependencies.services import get_task_service
+    from backend.types.pagination import PaginationParams
+    
+    task_service = get_task_service()
+    tasks_result = task_service.list_for_user(
+        user_id,
+        PaginationParams(page=1, per_page=1000),
+        session,
+    )
+    
+    first_day_ts = int(datetime(year, month, 1).timestamp())
+    last_day = calendar.monthrange(year, month)[1]
+    last_day_ts = int(datetime(year, month, last_day, 23, 59, 59).timestamp())
+    
+    month_tasks = [
+        t for t in tasks_result.items
+        if first_day_ts <= t.timestamp <= last_day_ts
+    ]
+    
+    return UserCalendarResponse(
+        user_id=dto.user_id,
+        user_name=dto.user_name,
+        year=dto.year,
+        month=dto.month,
+        availability=[
+            DailyAvailabilityResponse(
+                date=a.date.isoformat(),
+                status=a.status,
+                day_of_week=a.day_of_week,
+            )
+            for a in dto.availability
+        ],
+        tasks=[
+            TaskResponse(
+                id=t.id,
+                title=t.title,
+                description=t.description,
+                timestamp=t.timestamp,
+                status=t.status,
+            )
+            for t in month_tasks
+        ],
+    )
+
+
+@new_calendar_router.post("/{user_id}", response_model=CalendarUpdateResponse)
 def update_user_calendar_endpoint(
     user_id: str,
-    year: int = Query(..., description="Year for the calendar data"),
-    month: int = Query(..., ge=1, le=12, description="Month for the calendar data (1-12)"),
+    year: int = Query(..., ge=2000, le=2100),
+    month: int = Query(..., ge=1, le=12),
     payload: CalendarUpdateRequest = Body(...),
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    availability_service: AvailabilityService = Depends(get_availability_service),
 ):
-    if not (current_user.id == user_id or is_admin(current_user)):
-        raise HTTPException(
-            status_code=403,
-            detail="Not authorized to update this user's calendar data",
-        )
+    if current_user.id != user_id and not is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Not authorized to update this calendar")
     
     try:
-        # Parse and validate dates
-        office_dates_set = set()
-        for date_str in payload.office_dates:
-            try:
-                parsed_date = datetime.strptime(date_str, "%Y-%m-%d").date()
-                # Verify date is in the correct month/year
-                if parsed_date.year != year or parsed_date.month != month:
-                    raise HTTPException(
-                        status_code=400,
-                        detail=f"Date {date_str} is not in {year}-{month:02d}"
-                    )
-                office_dates_set.add(parsed_date)
-            except ValueError:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Invalid date format: {date_str}. Use YYYY-MM-DD."
-                )
-        
-        # Get all days in the month
-        first_day = date(year, month, 1)
-        last_day = date(year, month, calendar.monthrange(year, month)[1])
-        
-        # Get existing availability records for the month
-        existing_records = session.query(
-            OfficeAvailability,
-            user_id=user_id,
-            day__gte=first_day,
-            day__lte=last_day
-        )
-        
-        existing_map = {record.day: record for record in existing_records}
-        
-        # Update or create records for all days in the month
-        current_day = first_day
-        while current_day <= last_day:
-            is_office_day = current_day in office_dates_set
-            
-            if current_day in existing_map:
-                # Update existing record
-                existing_map[current_day].present = is_office_day
-            else:
-                # Create new record
-                new_availability = OfficeAvailability(
-                    user_id=user_id,
-                    day=current_day,
-                    present=is_office_day
-                )
-                session.add(new_availability)
-            
-            current_day = date(current_day.year, current_day.month, current_day.day + 1)
-            if current_day.month != month:
-                break
-        
-        session.commit()
-        
-        return CalendarUpdateResponse(
-            message="Calendar updated successfully",
-            user_id=user_id,
-            year=year,
-            month=month,
-            saved_office_days=len(office_dates_set)
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error updating calendar data: {e}")
-        session.rollback()
-        raise HTTPException(
-            status_code=500,
-            detail="An unexpected error occurred while updating calendar data."
-        )
+        office_dates = [datetime.strptime(d, "%Y-%m-%d").date() for d in payload.office_dates]
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=f"Invalid date format: {e}")
+    
+    for d in office_dates:
+        if d.year != year or d.month != month:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Date {d} is not in {year}-{month:02d}",
+            )
+    
+    result = availability_service.batch_update_month(user_id, year, month, office_dates, session)
+    
+    if isinstance(result, Err):
+        raise HTTPException(status_code=400, detail=result.error)
+    
+    return CalendarUpdateResponse(
+        message="Calendar updated successfully",
+        user_id=user_id,
+        year=year,
+        month=month,
+        saved_office_days=len(office_dates),
+    )

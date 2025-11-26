@@ -1,13 +1,10 @@
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
 from ulid import ULID
 from loguru import logger
 
 from backend.models import ProjectCreateModel, ProjectResponseModel
-from database.models import (
-    project_mapper,  # noqa F401
-    project_developers_table,  # noqa F401
-)
+import database.models.project_mapper  # noqa: F401
 from core.models.task import Task
 from core.models.user import User
 from core.models.project import Project
@@ -67,9 +64,10 @@ def update_project(
     """
     with session as s:
         repo = Repository[Project](s, Project)
-        project = repo.get(
-            id=project_id, options=[Project.developers, Project.tasks]
-        )  # type: ignore
+        projects = repo.query(
+            id=project_id, options=[Project.developers, Project.tasks]  # type: ignore
+        )
+        project = projects[0] if projects else None
 
         if not project:
             raise ValueError(f"Project with id {project_id} does not exist.")
@@ -80,14 +78,14 @@ def update_project(
             setattr(project, attr, value)
 
         s.commit()
-        # Re-fetch to populate relationships like developers and tasks for the response model
-        updated_project_orm = repo.get(
-            id=project_id, options=[Project.developers, Project.tasks]
-        )  # type: ignore
+        updated_projects = repo.query(
+            id=project_id, options=[Project.developers, Project.tasks]  # type: ignore
+        )
+        updated_project_orm = updated_projects[0] if updated_projects else None
         if not updated_project_orm:
             raise ValueError(
                 "Project disappeared after update"
-            )  # Should not happen
+            )
         project_data = updated_project_orm.to_dict()
     return ProjectResponseModel.model_validate(project_data)
 

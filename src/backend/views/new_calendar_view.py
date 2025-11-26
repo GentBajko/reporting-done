@@ -10,7 +10,7 @@ from backend.models.calendar_page import (
     PydanticBackendDailyAvailability,
     PydanticBackendUserCalendarResponse,
 )
-from database.interfaces.repository import Repository
+from database.repositories.repository import Repository
 from core.models.office_availability import OfficeAvailability
 
 
@@ -21,7 +21,7 @@ def get_new_calendar_data_for_user(
     month: int,
 ) -> PydanticBackendUserCalendarResponse:
     user_repo = Repository(session, User)
-    user = user_repo.get(id=user_id)
+    user = user_repo.get(user_id)
     if not user:
         raise ValueError(f"User with id {user_id} not found")
 
@@ -31,12 +31,10 @@ def get_new_calendar_data_for_user(
     month_end_date = date(year, month, num_days_in_month)
 
     office_availability_repo = Repository(session, OfficeAvailability)
-    db_availabilities: List[OfficeAvailability] = (
-        office_availability_repo.filter(
-            OfficeAvailability.user_id == user_id,
-            OfficeAvailability.day >= month_start_date,
-            OfficeAvailability.day <= month_end_date,
-        ).all()
+    db_availabilities: List[OfficeAvailability] = office_availability_repo.query(
+        user_id=user_id,
+        day__gte=month_start_date,
+        day__lte=month_end_date,
     )
 
     db_presence_map: dict[date, bool] = {
@@ -67,14 +65,16 @@ def get_new_calendar_data_for_user(
 
     task_list: List[PydanticBackendTask] = []
     task_repo = Repository(session, Task)
-    user_tasks: List[Task] = task_repo.filter(
-        Task.user_id == user_id,
-        Task.timestamp >= datetime(year, month, 1, 0, 0, 0),
-        Task.timestamp <= datetime(year, month, num_days_in_month, 23, 59, 59),
-    ).all()
+    start_timestamp = int(datetime(year, month, 1, 0, 0, 0).timestamp())
+    end_timestamp = int(datetime(year, month, num_days_in_month, 23, 59, 59).timestamp())
+    user_tasks: List[Task] = task_repo.query(
+        user_id=user_id,
+        timestamp__gte=start_timestamp,
+        timestamp__lte=end_timestamp,
+    )
 
     for task_item in user_tasks:
-        unix_timestamp = int(task_item.timestamp.timestamp())
+        unix_timestamp = task_item.timestamp
 
         task_list.append(
             PydanticBackendTask(

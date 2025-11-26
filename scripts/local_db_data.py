@@ -5,13 +5,6 @@ from ulid import ULID
 from argon2 import PasswordHasher
 
 from core.models.log import Log
-from database.models import (  # noqa F401
-    log_mapper,
-    task_mapper,
-    user_mapper,
-    project_mapper,
-    project_developers_table,
-)
 from core.models.task import Task
 from core.models.user import User
 from core.models.project import Project
@@ -19,6 +12,10 @@ from core.enums.premissions import Permissions
 from core.enums.task_status import TaskStatus
 from database.adapters.mysql import MySQL
 from core.models.project_user import ProjectUser
+import database.models.log_mapper  # noqa: F401
+import database.models.task_mapper  # noqa: F401
+import database.models.user_mapper  # noqa: F401
+import database.models.project_mapper  # noqa: F401
 from database.repositories.repository import Repository
 from database.sessions.sqlalchemy_session import SQLAlchemySession
 

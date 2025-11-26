@@ -1,423 +1,250 @@
-from typing import List, Optional
+from typing import Sequence
 
-from fastapi import Form, Query, Depends, Request, APIRouter, HTTPException
-from pydantic import BaseModel
-from fastapi.responses import Response, HTMLResponse, RedirectResponse
+from fastapi import Query, Depends, Request, APIRouter, HTTPException
+from pydantic import BaseModel, EmailStr, Field
 
-from backend.models import (
-    UserCreateModel,
-    UserResponseModel,
-)
-from core.models.log import Log
-from core.models.task import Task
-from core.models.user import User
-from core.models.project import Project
-from backend.dependencies import get_session
-from backend.utils.templates import templates
-from backend.views.user_view import (
-    get_user,
-    create_user,
-    update_user,
-    upsert_user,
-    get_all_users,
-    get_user_logs,
-    get_user_tasks,
-    authenticate_user,
-    get_project_by_user,
-)
-from backend.dependencies.auth import (
-    is_admin,
-    validate_csrf,
+from backend.services import UserService
+from backend.types.dtos import UserDTO, UserCreateDTO, UserUpdateDTO, ProjectDTO, TaskDTO, LogDTO
+from backend.types.pagination import PaginationParams
+from backend.types.result import Err
+from backend.protocols.session import ISession
+from backend.dependencies import (
+    get_session,
     get_current_user,
+    require_admin,
+    is_admin,
+    get_user_service,
 )
-from backend.models.pagination import Pagination
-from backend.views.project_view import get_project
-from database.interfaces.session import ISession
-from backend.utils.filters_and_sort import get_filters, get_sorting
-from database.interfaces.repository import Repository
-from config.env import ENV
+from core.models.user import User
+
 
 user_router = APIRouter(prefix="/user")
 
 
-@user_router.get("/create")
-def get_user_home(
-    request: Request, current_user: User = Depends(get_current_user)
-):
-    if not is_admin(current_user):
-        raise HTTPException(status_code=401, detail="Access forbidden")
-    return templates.TemplateResponse("user/create.html", {"request": request})
+class UserCreateRequest(BaseModel):
+    email: EmailStr
+    full_name: str = Field(min_length=1, max_length=255)
+    password: str = Field(min_length=8)
+    permissions: int = Field(ge=0)
 
 
-@user_router.get("/is_admin", response_model=bool)
-def is_admin_endpoint(
-    request: Request,
-    current_user: User = Depends(get_current_user),
-):
-    return is_admin(current_user)
+class UserUpdateRequest(BaseModel):
+    email: EmailStr | None = None
+    full_name: str | None = Field(default=None, min_length=1, max_length=255)
+    permissions: int | None = Field(default=None, ge=0)
 
 
-@user_router.post("/", response_model=UserResponseModel)
+class PaginatedResponse(BaseModel):
+    items: Sequence[UserDTO] | Sequence[ProjectDTO] | Sequence[TaskDTO] | Sequence[LogDTO]
+    total: int
+    page: int
+    per_page: int
+    has_next: bool
+    has_prev: bool
+
+
+class IsAdminResponse(BaseModel):
+    is_admin: bool
+
+
+@user_router.post("/", response_model=UserDTO)
 async def create_user_endpoint(
-    request: Request,
-    email: str = Form(...),
-    full_name: str = Form(...),
-    password: str = Form(...),
-    permissions: int = Form(...),
+    body: UserCreateRequest,
     session: ISession = Depends(get_session),
-    csrf_protect=Depends(validate_csrf),
+    current_user: User = Depends(require_admin),
+    user_service: UserService = Depends(get_user_service),
 ):
-    user = UserCreateModel(
-        email=email,
-        full_name=full_name,
-        password=password,
-        permissions=permissions,
+    dto = UserCreateDTO(
+        email=body.email,
+        full_name=body.full_name,
+        password=body.password,
+        permissions=body.permissions,
     )
-    created_user_model = create_user(user, session)
-    if not created_user_model:
-        raise HTTPException(status_code=400, detail="User creation failed.")
-    return created_user_model
-
-
-@user_router.get("/login", response_class=HTMLResponse)
-def login_page(request: Request):
-    return templates.TemplateResponse("user/login.html", {"request": request})
-
-
-@user_router.post("/login")
-async def login_user(
-    request: Request,
-    email: str = Form(None),
-    password: str = Form(None),
-    session: ISession = Depends(get_session),
-    csrf_protect=Depends(validate_csrf),
-):
-    # Auto-login in dev mode if no credentials provided
-    if ENV.ENV == "dev" and not email and not password:
-        # Get the first user from the database
-        with session as s:
-            repo = Repository(s, User)
-            first_user = repo.get_all(limit=1)
-            if first_user:
-                request.session["user_id"] = first_user[0].id
-                return RedirectResponse(url="/", status_code=302)
-            else:
-                raise HTTPException(status_code=400, detail="No users found for auto-login")
     
-    # Normal authentication flow
-    if not email or not password:
-        raise HTTPException(status_code=400, detail="Email and password are required")
+    result = user_service.create(dto, session)
     
-    authenticated_user = authenticate_user(email, password, session)
-    if not authenticated_user:
-        raise HTTPException(status_code=400, detail="Invalid credentials")
-    request.session["user_id"] = authenticated_user.id
-    return RedirectResponse(url="/", status_code=302)
+    if isinstance(result, Err):
+        raise HTTPException(status_code=400, detail=result.error)
+    
+    return result.value
 
 
-@user_router.post("/logout")
-async def logout(
-    request: Request,
-    csrf_protect=Depends(validate_csrf),
-):
-    request.session.clear()
-    return RedirectResponse(url="/user/login", status_code=302)
-
-
-@user_router.get("/{project_id}/options", response_class=HTMLResponse)
-def get_user_options(
-    request: Request,
-    project_id: str,
-    page: int = 1,
-    limit: int = 300,
-    session: ISession = Depends(get_session),
+@user_router.get("/is_admin", response_model=IsAdminResponse)
+def is_admin_endpoint(
     current_user: User = Depends(get_current_user),
 ):
-    order_by = [User.full_name]
-
-    pagination = Pagination(limit=limit, current_page=page, order_by=order_by)
-
-    project = get_project(session, id=project_id)
-    users, pagination = get_all_users(session, pagination)
-
-    users = [user for user in users if user not in project.developers]
-
-    html_options = [
-        f'<option value="{user.id}">{user.full_name}</option>'
-        for user in users
-    ]
-    return HTMLResponse("\n".join(html_options))
+    return IsAdminResponse(is_admin=is_admin(current_user))
 
 
-@user_router.get("/{user_id}", response_model=UserResponseModel)
+@user_router.get("/me", response_model=UserDTO)
+async def get_current_user_details(
+    session: ISession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service),
+):
+    result = user_service.get_by_id(current_user.id, session)
+    
+    if isinstance(result, Err):
+        raise HTTPException(status_code=404, detail=result.error)
+    
+    return result.value
+
+
+@user_router.get("/", response_model=PaginatedResponse)
+def get_all_users_endpoint(
+    page: int = Query(1, ge=1),
+    limit: int = Query(15, ge=1, le=100),
+    sort: str | None = Query(None),
+    order: str = Query("asc"),
+    session: ISession = Depends(get_session),
+    current_user: User = Depends(require_admin),
+    user_service: UserService = Depends(get_user_service),
+):
+    pagination = PaginationParams(
+        page=page,
+        per_page=limit,
+        sort_by=sort,
+        sort_order=order,
+    )
+    
+    result = user_service.list_all(pagination, session)
+    
+    return PaginatedResponse(
+        items=result.items,
+        total=result.total,
+        page=result.page,
+        per_page=result.meta.per_page,
+        has_next=result.has_next,
+        has_prev=result.has_prev,
+    )
+
+
+@user_router.get("/{user_id}", response_model=UserDTO)
 def get_user_endpoint(
-    request: Request,
     user_id: str,
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service),
 ):
     if current_user.id != user_id and not is_admin(current_user):
-        raise HTTPException(
-            status_code=403, detail="Not authorized to view this profile"
-        )
-
-    user = get_user(session, id=user_id)
-    if not user:
-        raise HTTPException(status_code=404, detail="User not found")
-
-    return user
-
-
-class UserProfileUpdateModel(BaseModel):
-    full_name: Optional[str] = None
-    email: Optional[str] = None
-    permissions: Optional[int] = None
+        raise HTTPException(status_code=403, detail="Not authorized to view this profile")
+    
+    result = user_service.get_by_id(user_id, session)
+    
+    if isinstance(result, Err):
+        raise HTTPException(status_code=404, detail=result.error)
+    
+    return result.value
 
 
-@user_router.put("/{user_id}", response_model=UserResponseModel)
+@user_router.put("/{user_id}", response_model=UserDTO)
 def update_user_endpoint(
     user_id: str,
-    user_update_data: UserProfileUpdateModel,
+    body: UserUpdateRequest,
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service),
 ):
     if current_user.id != user_id and not is_admin(current_user):
-        raise HTTPException(
-            status_code=403, detail="Not authorized to update this profile"
-        )
-
-    updated_user_model = update_user(user_id, user_update_data, session)
-    if not updated_user_model:
-        raise HTTPException(
-            status_code=404, detail="User not found or update failed"
-        )
-    return updated_user_model
-
-
-@user_router.post("/upsert", response_model=UserResponseModel)
-def upsert_user_endpoint(
-    user: UserCreateModel, session: ISession = Depends(get_session)
-):
-    return upsert_user(user, session)
-
-
-@user_router.get("/", response_model=List[UserResponseModel])
-def get_all_users_endpoint(
-    request: Request,
-    page: int = Query(1, alias="page"),
-    sort: Optional[str] = Query(None, alias="sort"),
-    order: Optional[str] = Query(None, alias="order"),
-    limit: int = Query(15, alias="limit"),
-    combined_filters: Optional[str] = Query(None, alias="filters"),
-    session: ISession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-):
-    if not is_admin(current_user):
-        raise HTTPException(status_code=403, detail="Access forbidden")
-
-    filter_mapping = {
-        "Name": "full_name",
-        "Email": "email",
-    }
-
-    sort_mapping = {
-        "Name": User.full_name,
-        "Email": User.email,
-    }
-
-    order_by = get_sorting(sort, order, sort_mapping)
-    pagination = Pagination(limit=limit, current_page=page, order_by=order_by)
-
-    filters = get_filters(combined_filters, filter_mapping, "Name")
-
-    users, _ = get_all_users(session, pagination, **filters)
-
-    return users
+        raise HTTPException(status_code=403, detail="Not authorized to update this profile")
+    
+    dto = UserUpdateDTO(
+        email=body.email,
+        full_name=body.full_name,
+        permissions=body.permissions if is_admin(current_user) else None,
+    )
+    
+    result = user_service.update(user_id, dto, session)
+    
+    if isinstance(result, Err):
+        raise HTTPException(status_code=404, detail=result.error)
+    
+    return result.value
 
 
 @user_router.delete("/{user_id}", status_code=204)
 async def delete_user_endpoint(
     user_id: str,
     session: ISession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
+    user_service: UserService = Depends(get_user_service),
 ):
-    if not is_admin(current_user):
-        raise HTTPException(status_code=403, detail="Access forbidden")
-
-    with session as s:
-        repo = Repository(s, User)
-        user_to_delete = repo.get(id=user_id)
-        if not user_to_delete:
-            raise HTTPException(status_code=404, detail="User not found")
-
-        # Basic check: Prevent deleting oneself
-        if user_to_delete.id == current_user.id:
-            raise HTTPException(
-                status_code=400,
-                detail="Cannot delete your own account as admin.",
-            )
-
-        # TODO: Add more sophisticated checks if user is tied to critical data
-        # For example, check if user has active projects or tasks assigned.
-        # For now, direct delete.
-
-        repo.delete(user_to_delete)
-        s.commit()
-
-    return Response(status_code=204)
+    result = user_service.delete(user_id, current_user.id, session)
+    
+    if isinstance(result, Err):
+        raise HTTPException(status_code=400, detail=result.error)
 
 
-@user_router.get("/{user_id}/projects", response_class=HTMLResponse)
+@user_router.get("/{user_id}/projects", response_model=PaginatedResponse)
 def get_user_projects_endpoint(
-    request: Request,
     user_id: str,
-    page: int = 1,
-    sort: Optional[str] = None,
-    order: Optional[str] = None,
-    limit: int = 15,
+    page: int = Query(1, ge=1),
+    limit: int = Query(15, ge=1, le=100),
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service),
 ):
-    sort_mapping = {
-        "Name": Project.name,
-        "Email": Project.email,
-        "Send Email": Project.send_email,
-        "Archived": Project.archived,
-    }
-
-    order_by = get_sorting(sort, order, sort_mapping)
-    pagination = Pagination(limit=limit, current_page=page, order_by=order_by)
-
-    projects, pagination = get_project_by_user(session, user_id, pagination)
-
-    return templates.TemplateResponse(
-        "project/projects.html",
-        {
-            "request": request,
-            "headers": [
-                "Name",
-                "Email",
-                "Send Email",
-                "Archived",
-                "Developers",
-                "Tasks",
-            ],
-            "data": projects,
-            "pagination": pagination,
-            "entity": "project",
-            "current_sort": sort,
-            "current_order": order,
-        },
-    )
-
-
-@user_router.get("/{user_id}/tasks", response_class=HTMLResponse)
-def get_user_tasks_endpoint(
-    request: Request,
-    user_id: str,
-    page: int = 1,
-    sort: Optional[str] = None,
-    order: Optional[str] = None,
-    limit: int = 15,
-    session: ISession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-):
-    sort_mapping = {
-        "Title": Task.title,
-        "Hours Required": Task.hours_required,
-        "Hours Worked": Task.hours_worked,
-        "Status": Task.status,
-        "Date": Task.timestamp,
-        "Last Updated": Task.last_updated,
-    }
-
-    order_by = get_sorting(sort, order, sort_mapping)
-    pagination = Pagination(limit=limit, current_page=page, order_by=order_by)
-
-    tasks, pagination = get_user_tasks(session, user_id, pagination)
-
-    return templates.TemplateResponse(
-        "task/tasks.html",
-        {
-            "request": request,
-            "headers": [
-                "Title",
-                "Project",
-                "Hours Required",
-                "Hours Worked",
-                "Description",
-                "Date",
-                "Status",
-                "Logs",
-                "Last Updated",
-            ],
-            "data": tasks,
-            "pagination": pagination,
-            "entity": "task",
-            "current_sort": sort,
-            "current_order": order,
-        },
-    )
-
-
-@user_router.get("/{user_id}/logs", response_class=HTMLResponse)
-def get_logs_by_user_endpoint(
-    request: Request,
-    user_id: str,
-    page: int = 1,
-    sort: Optional[str] = None,
-    order: Optional[str] = None,
-    limit: int = 15,
-    session: ISession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-):
-    sort_mapping = {
-        "ID": Log.id,
-        "Task Name": Log.task_name,
-        "Hours ": Log.hours_spent_today,
-        "Task Status": Log.task_status,
-        "Date": Log.timestamp,
-    }
-
-    order_by = get_sorting(sort, order, sort_mapping)
-    pagination = Pagination(limit=limit, current_page=page, order_by=order_by)
-
     if current_user.id != user_id and not is_admin(current_user):
         raise HTTPException(status_code=403, detail="Access forbidden")
-
-    logs, pagination = get_user_logs(session, user_id, pagination)
-
-    context = {
-        "request": request,
-        "headers": [
-            "Task Name",
-            "User",
-            "Hours Worked",
-            "Description",
-            "Date",
-            "Task Status",
-            "Actions",
-        ],
-        "data": logs,
-        "pagination": pagination,
-        "entity": "log",
-        "current_sort": sort,
-        "current_order": order,
-    }
-    return templates.TemplateResponse("log/logs.html", context)
+    
+    pagination = PaginationParams(page=page, per_page=limit)
+    result = user_service.get_user_projects(user_id, pagination, session)
+    
+    return PaginatedResponse(
+        items=result.items,
+        total=result.total,
+        page=result.page,
+        per_page=result.meta.per_page,
+        has_next=result.has_next,
+        has_prev=result.has_prev,
+    )
 
 
-@user_router.get("/me", response_model=Optional[UserResponseModel])
-async def get_current_user_details(
-    request: Request,
-    current_user_instance: User = Depends(get_current_user),
+@user_router.get("/{user_id}/tasks")
+def get_user_tasks_endpoint(
+    user_id: str,
+    page: int = Query(1, ge=1),
+    limit: int = Query(15, ge=1, le=100),
+    session: ISession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service),
 ):
-    if isinstance(current_user_instance, User):
-        return UserResponseModel.model_validate(
-            current_user_instance.to_dict()
-        )
+    if current_user.id != user_id and not is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Access forbidden")
+    
+    pagination = PaginationParams(page=page, per_page=limit)
+    result = user_service.get_user_tasks(user_id, pagination, session)
+    
+    return {
+        "items": result.items,
+        "total": result.total,
+        "page": result.page,
+        "per_page": result.meta.per_page,
+        "has_next": result.has_next,
+        "has_prev": result.has_prev,
+    }
 
-    if not isinstance(current_user_instance, User):
-        raise HTTPException(status_code=401, detail="Not authenticated")
 
-    return UserResponseModel.model_validate(current_user_instance.to_dict())
+@user_router.get("/{user_id}/logs")
+def get_user_logs_endpoint(
+    user_id: str,
+    page: int = Query(1, ge=1),
+    limit: int = Query(15, ge=1, le=100),
+    session: ISession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    user_service: UserService = Depends(get_user_service),
+):
+    if current_user.id != user_id and not is_admin(current_user):
+        raise HTTPException(status_code=403, detail="Access forbidden")
+    
+    pagination = PaginationParams(page=page, per_page=limit)
+    result = user_service.get_user_logs(user_id, pagination, session)
+    
+    return {
+        "items": result.items,
+        "total": result.total,
+        "page": result.page,
+        "per_page": result.meta.per_page,
+        "has_next": result.has_next,
+        "has_prev": result.has_prev,
+    }

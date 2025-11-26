@@ -1,16 +1,20 @@
-from typing import Union
-
-from fastapi import Depends, Request, APIRouter, HTTPException
+from fastapi import Depends, APIRouter, HTTPException
 from pydantic import BaseModel
-from fastapi.responses import HTMLResponse, RedirectResponse
 
-from backend.views import log_view, task_view, project_view
+from backend.services import ProjectService, TaskService, LogService
+from backend.types.pagination import PaginationParams
+from backend.protocols.session import ISession
+from backend.dependencies import (
+    get_session,
+    get_current_user,
+    is_admin,
+    get_project_service,
+    get_task_service,
+    get_log_service,
+)
 from core.models.user import User
-from backend.dependencies import get_session
 from core.enums.task_status import TaskStatus
-from backend.dependencies.auth import is_admin, get_current_user
-from backend.models.pagination import Pagination
-from database.interfaces.session import ISession
+
 
 dashboard_router = APIRouter()
 
@@ -22,78 +26,60 @@ class DashboardSummaryResponse(BaseModel):
     is_admin_user: bool
 
 
-@dashboard_router.get("/", response_class=HTMLResponse)
-async def home(
-    request: Request,
-    session: ISession = Depends(get_session),
-    current_user: Union[User, RedirectResponse] = Depends(get_current_user),
-):
-    if isinstance(current_user, User):
-        return RedirectResponse(url="/task")
-    request.session.clear()
-    return RedirectResponse(url="/user/login")
-
-
-@dashboard_router.get(
-    "/api/dashboard/summary", response_model=DashboardSummaryResponse
-)
+@dashboard_router.get("/api/dashboard/summary", response_model=DashboardSummaryResponse)
 async def get_dashboard_summary(
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    project_service: ProjectService = Depends(get_project_service),
+    task_service: TaskService = Depends(get_task_service),
+    log_service: LogService = Depends(get_log_service),
 ):
-    if not isinstance(current_user, User):
-        raise HTTPException(status_code=401, detail="Not authenticated")
-
     user_is_admin = is_admin(current_user)
-    user_id_to_query = current_user.id
-
-    no_limit_pagination = Pagination(limit=10000, current_page=1)
-
+    no_limit_pagination = PaginationParams(page=1, per_page=10000)
+    
     if user_is_admin:
-        projects, proj_pagination = project_view.get_all_projects(
-            session, no_limit_pagination, archived=False
+        projects_result = project_service.list_all(
+            no_limit_pagination,
+            session,
+            archived=False,
         )
-        active_projects_count = proj_pagination.total_items
+        active_projects_count = projects_result.total
     else:
-        projects, _ = project_view.get_users_projects(
-            user_id_to_query, session, no_limit_pagination, archived=False
+        projects_result = project_service.list_for_user(
+            current_user.id,
+            no_limit_pagination,
+            session,
+            archived=False,
         )
-        active_projects_count = sum(1 for p in projects if not p.archived)
-
-    pending_tasks_count = 0
-
+        active_projects_count = sum(1 for p in projects_result.items if not p.archived)
+    
+    done_statuses = {TaskStatus.DONE.value, TaskStatus.CANCELLED.value}
+    
     if user_is_admin:
-        tasks, _ = task_view.get_all_tasks(session, no_limit_pagination)
-        pending_tasks_count = sum(
-            1
-            for t in tasks
-            if t.status
-            and t.status
-            not in [TaskStatus.DONE.value, TaskStatus.CANCELLED.value]
-        )
+        tasks_result = task_service.list_all(no_limit_pagination, session)
     else:
-        tasks, _ = task_view.get_user_tasks(
-            session, user_id_to_query, no_limit_pagination
+        tasks_result = task_service.list_for_user(
+            current_user.id,
+            no_limit_pagination,
+            session,
         )
-        pending_tasks_count = sum(
-            1
-            for t in tasks
-            if t.status
-            and t.status
-            not in [TaskStatus.DONE.value, TaskStatus.CANCELLED.value]
-        )
-
+    
+    pending_tasks_count = sum(
+        1 for t in tasks_result.items
+        if t.status and t.status not in done_statuses
+    )
+    
     if user_is_admin:
-        logs, log_pagination = log_view.get_all_logs(
-            session, no_limit_pagination
-        )
-        recent_logs_count = log_pagination.total_items
+        logs_result = log_service.list_all(no_limit_pagination, session)
     else:
-        logs, log_pagination = log_view.get_user_logs(
-            session, user_id_to_query, no_limit_pagination
+        logs_result = log_service.list_for_user(
+            current_user.id,
+            no_limit_pagination,
+            session,
         )
-        recent_logs_count = log_pagination.total_items
-
+    
+    recent_logs_count = logs_result.total
+    
     return DashboardSummaryResponse(
         active_projects_count=active_projects_count,
         pending_tasks_count=pending_tasks_count,
