@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { HiCheck, HiPencil, HiUserCircle, HiX } from "react-icons/hi";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import { useApi } from "../hooks/useApi";
 
 interface UserProfileData {

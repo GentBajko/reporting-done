@@ -9,7 +9,7 @@ import {
   HiPlus,
 } from "react-icons/hi";
 import { Link } from "react-router-dom";
-import { useAuth } from "../contexts/AuthContext";
+import { useAuth } from "../hooks/useAuth";
 import { useApi } from "../hooks/useApi";
 
 interface DashboardSummaryData {

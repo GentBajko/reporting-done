@@ -4,8 +4,9 @@ import {
   HiChevronRight,
   HiCheck,
 } from "react-icons/hi";
-import { useAuth } from "../contexts/AuthContext";
-import { ToastContainer, useToast } from "./common/Toast";
+import { useAuth } from "../hooks/useAuth";
+import { ToastContainer } from "./common/Toast";
+import { useToast } from "../hooks/useToast";
 import FloatingActionButton from "./common/FloatingActionButton";
 
 const daysOfWeekHeaders = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];

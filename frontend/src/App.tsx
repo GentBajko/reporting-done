@@ -30,7 +30,7 @@ import ProtectedRoute from "./components/ProtectedRoute";
 import TasksPage from "./components/TasksPage";
 import UserProfilePage from "./components/UserProfilePage";
 import UsersPage from "./components/UsersPage";
-import { useAuth } from "./contexts/AuthContext";
+import { useAuth } from "./hooks/useAuth";
 
 const VITE_APP_LOGO_URL =
   import.meta.env.VITE_APP_LOGO_URL || "https://usc1.contabostorage.com/278d5c220c4043c09cbe73860c7acb17:ocrdone/assets/BusinessDoneLogoTransparentWhite.png";

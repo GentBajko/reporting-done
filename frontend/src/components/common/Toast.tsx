@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { HiCheckCircle, HiExclamationCircle, HiX } from "react-icons/hi";
 
 export type ToastType = "success" | "error" | "info";
@@ -88,21 +88,6 @@ export const ToastContainer = ({ toasts, removeToast }: ToastContainerProps) => 
       ))}
     </div>
   );
-};
-
-export const useToast = () => {
-  const [toasts, setToasts] = useState<ToastMessage[]>([]);
-
-  const addToast = (message: string, type: ToastType = "info") => {
-    const id = `${Date.now()}-${Math.random()}`;
-    setToasts((prev) => [...prev, { id, message, type }]);
-  };
-
-  const removeToast = (id: string) => {
-    setToasts((prev) => prev.filter((t) => t.id !== id));
-  };
-
-  return { toasts, addToast, removeToast };
 };
 
 export default Toast;

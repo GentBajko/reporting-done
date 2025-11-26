@@ -3,11 +3,12 @@ import {
   HiChevronLeft,
   HiChevronRight
 } from "react-icons/hi";
-import { useAuth } from "../contexts/AuthContext";
 import { useApi } from "../hooks/useApi";
+import { useAuth } from "../hooks/useAuth";
+import { useToast } from "../hooks/useToast";
 import Modal from "./Modal";
 import FloatingActionButton from "./common/FloatingActionButton";
-import { ToastContainer, useToast } from "./common/Toast";
+import { ToastContainer } from "./common/Toast";
 
 interface BackendDailyAvailability {
   date: string;
