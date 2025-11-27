@@ -1,11 +1,12 @@
 from alembic import context
 from database.models import (
-    Log,  # noqa: F401
-    Task,  # noqa: F401
-    User,  # noqa: F401
-    Project,  # noqa: F401
-    OfficeCalendar,  # noqa: F401
-    project_developers_table,  # noqa: F401
+    Log,
+    Task,
+    User,
+    Project,
+    Event,
+    OfficeAvailability,
+    project_developers_table,
 )
 from database.models.mapper import mapper_registry
 from database.adapters.mysql import MySQL

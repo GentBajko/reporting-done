@@ -1,7 +1,7 @@
 [project]
-name = "d5reports"
+name = "reportsdone"
 version = "0.1.0"
-description = "Internal reporting system for Division5"
+description = "Reporting and management system by BusinessDone"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [

@@ -1,446 +1,365 @@
 from io import StringIO
 import csv
-from typing import Optional
-from datetime import datetime
+from typing import Any, Sequence
 
-from loguru import logger
-from fastapi import Form, Query, Depends, Request, APIRouter, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse, StreamingResponse
+from fastapi import Query, Depends, APIRouter, HTTPException
+from pydantic import Field, BaseModel
+from fastapi.responses import StreamingResponse
 
-from backend.models import TaskCreateModel, TaskResponseModel
-from core.models.log import Log
-from database.models import task_mapper  # noqa F401
-from core.models.task import Task
+from backend.services import TaskService
 from core.models.user import User
-from backend.dependencies import get_session
-from backend.utils.templates import templates
-from backend.views.task_view import (
-    get_task,
-    create_task,
-    update_task,
-    upsert_task,
-    get_all_tasks,
-    get_task_logs,
-    get_user_tasks,
-    get_project_tasks,
-)
-from backend.dependencies.auth import (
+from backend.types.dtos import LogDTO, TaskDTO, TaskCreateDTO, TaskUpdateDTO
+from backend.dependencies import (
     is_admin,
-    validate_csrf,
+    get_session,
+    require_admin,
     get_current_user,
+    get_task_service,
 )
-from backend.models.pagination import Pagination
-from database.interfaces.session import ISession
-from backend.utils.filters_and_sort import get_filters, get_sorting
+from backend.types.result import Err
+from backend.types.pagination import PaginationParams
+from backend.protocols.session import ISession
 
 task_router = APIRouter(prefix="/task")
 
 
-@task_router.get("/create")
-def get_task_home(
-    request: Request, current_user: User = Depends(get_current_user)
-):
-    """
-    Endpoint to retrieve the task home page.
-    """
-    return templates.TemplateResponse("task/create.html", {"request": request})
+class TaskCreateRequest(BaseModel):
+    project_id: str
+    title: str = Field(min_length=1, max_length=500)
+    hours_required: float = Field(ge=0)
+    description: str = Field(max_length=10000)
+    status: str | None = None
+    user_id: str | None = None
 
 
-@task_router.post("/", response_class=HTMLResponse)
+class TaskUpdateRequest(BaseModel):
+    title: str | None = Field(default=None, min_length=1, max_length=500)
+    hours_required: float | None = Field(default=None, ge=0)
+    description: str | None = Field(default=None, max_length=10000)
+    status: str | None = None
+    user_id: str | None = None
+    returned: bool | None = None
+
+
+class PaginatedTasksResponse(BaseModel):
+    items: Sequence[TaskDTO]
+    total: int
+    page: int
+    per_page: int
+    has_next: bool
+    has_prev: bool
+
+
+class PaginatedLogsResponse(BaseModel):
+    items: Sequence[LogDTO]
+    total: int
+    page: int
+    per_page: int
+    has_next: bool
+    has_prev: bool
+
+
+@task_router.post("/", response_model=TaskDTO)
 async def create_task_endpoint(
-    request: Request,
-    project_id: str = Form(...),
-    project_name: str = Form(...),
-    title: str = Form(...),
-    hours_required: float = Form(...),
-    description: str = Form(...),
+    body: TaskCreateRequest,
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
-    csrf_protect=Depends(validate_csrf),
+    task_service: TaskService = Depends(get_task_service),
 ):
-    """
-    Endpoint to create a new task.
-    """
+    assigned_user_id = body.user_id
 
-    task_data = TaskCreateModel(
-        project_id=project_id,
-        project_name=project_name,
-        user_id=current_user.id,
-        user_name=current_user.full_name,
-        title=title,
-        hours_required=hours_required,
-        description=description,
+    if (
+        assigned_user_id
+        and assigned_user_id != current_user.id
+        and not is_admin(current_user)
+    ):
+        assigned_user_id = current_user.id
+
+    dto = TaskCreateDTO(
+        project_id=body.project_id,
+        title=body.title,
+        hours_required=body.hours_required,
+        description=body.description,
+        status=body.status,
+        user_id=assigned_user_id,
     )
-    try:
-        task = create_task(task_data, session)
-    except Exception as e:
-        logger.exception(e)
-        raise HTTPException(status_code=400, detail=str(e))
-    return RedirectResponse(f"/task/{task.id}", status_code=303)
+
+    result = task_service.create(dto, current_user.id, session)
+
+    if isinstance(result, Err):
+        raise HTTPException(status_code=400, detail=result.error)
+
+    return result.value
 
 
-@task_router.get("/options", response_class=HTMLResponse)
-def get_project_options(
-    request: Request,
+@task_router.get("/", response_model=PaginatedTasksResponse)
+def get_all_tasks_endpoint(
+    page: int = Query(1, ge=1),
+    limit: int = Query(25, ge=1, le=100),
+    sort: str | None = Query(None),
+    order: str = Query("desc"),
+    status: str | None = Query(None),
+    project_id: str | None = Query(None),
+    user_id: str | None = Query(None),
+    returned: bool | None = Query(None),
+    date_from: int | None = Query(
+        None, description="Unix timestamp for start date"
+    ),
+    date_to: int | None = Query(
+        None, description="Unix timestamp for end date"
+    ),
+    hours_progress: str | None = Query(
+        None,
+        description="Filter by hours progress: overdue, on_track, not_started",
+    ),
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    task_service: TaskService = Depends(get_task_service),
 ):
-    pagination = Pagination(
-        limit=300,
-        current_page=1,
-        order_by=[Task.timestamp],  # type: ignore
-    )
-    tasks = (
-        get_all_tasks(session, pagination)[0]
-        if is_admin(current_user)
-        else [
-            project
-            for project in get_user_tasks(
-                session, current_user.id, pagination
-            )[0]
-        ]
+    pagination = PaginationParams(
+        page=page,
+        per_page=limit,
+        sort_by=sort,
+        sort_order=order,
     )
 
-    options_html = ""
-    for task in tasks:
-        options_html += f'<option value="{task.id}" status="{task.status}">{task.title}</option>'
+    filters: dict[str, Any] = {}
+    if status:
+        filters["status"] = status
+    if project_id:
+        filters["project_id"] = project_id
+    if user_id:
+        filters["user_id"] = user_id
+    if returned is not None:
+        filters["returned"] = returned
+    if date_from is not None:
+        filters["timestamp__gte"] = date_from
+    if date_to is not None:
+        filters["timestamp__lte"] = date_to
 
-    return HTMLResponse(content=options_html)
+    if is_admin(current_user):
+        result = task_service.list_all(pagination, session, **filters)
+    else:
+        result = task_service.list_for_user(
+            current_user.id, pagination, session, **filters
+        )
+
+    if hours_progress:
+        filtered_items = []
+        for task in result.items:
+            if (
+                hours_progress == "overdue"
+                and task.hours_worked > task.hours_required
+            ):
+                filtered_items.append(task)
+            elif (
+                hours_progress == "on_track"
+                and 0 < task.hours_worked <= task.hours_required
+            ):
+                filtered_items.append(task)
+            elif hours_progress == "not_started" and task.hours_worked == 0:
+                filtered_items.append(task)
+        return PaginatedTasksResponse(
+            items=filtered_items,
+            total=len(filtered_items),
+            page=result.page,
+            per_page=result.meta.per_page,
+            has_next=False,
+            has_prev=result.has_prev,
+        )
+
+    return PaginatedTasksResponse(
+        items=result.items,
+        total=result.total,
+        page=result.page,
+        per_page=result.meta.per_page,
+        has_next=result.has_next,
+        has_prev=result.has_prev,
+    )
 
 
 @task_router.get("/export", response_class=StreamingResponse)
 def export_tasks_csv(
-    request: Request,
-    combined_filters: Optional[str] = Query(None),
     session: ISession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_admin),
+    task_service: TaskService = Depends(get_task_service),
 ):
-    """
-    Export tasks between two dates as a CSV file.
-    """
-    if not is_admin(current_user):
-        raise HTTPException(status_code=403, detail="Access forbidden")
-    try:
-        filter_mapping = {
-            "Title": "title",
-            "Project": "project_name",
-            "Hours Required": "hours_required",
-            "Hours Worked": "hours_worked",
-            "Status": "status",
-            "Date": "timestamp",
-            "Last Updated": "last_updated",
-            "User": "user_name",
-        }
-        pagination = Pagination(limit=None, current_page=1, order_by=[])
-        filters = get_filters(
-            combined_filters,
-            filter_mapping,
+    from datetime import datetime
+
+    pagination = PaginationParams(page=1, per_page=10000)
+    result = task_service.list_all(pagination, session)
+
+    output = StringIO()
+    writer = csv.writer(output)
+
+    writer.writerow(
+        [
+            "ID",
             "Title",
-            date_fields=["Date", "Last Updated"],
-        )
-
-        tasks, _ = get_all_tasks(session, pagination, **filters)
-        csv_file = StringIO()
-        writer = csv.writer(csv_file)
-        writer.writerow(
-            ["ID", "Title", "User", "Project", "Status", "Timestamp"]
-        )
-        for task in tasks:
-            writer.writerow(
-                [
-                    task.id,
-                    task.title,
-                    task.user_name,
-                    task.project_name,
-                    task.status,
-                    datetime.fromtimestamp(task.timestamp).strftime(
-                        "%Y-%m-%d %H:%M:%S"
-                    ),
-                ]
-            )
-        csv_file.seek(0)
-        response = StreamingResponse(
-            iter([csv_file.getvalue()]),
-            media_type="text/csv",
-        )
-        response.headers["Content-Disposition"] = (
-            "attachment; filename=tasks.csv"
-        )
-        return response
-    except Exception as e:
-        logger.error(f"Error exporting tasks: {e}")
-        raise HTTPException(status_code=500, detail="Error exporting tasks")
-
-
-@task_router.get("/{task_id}", response_class=HTMLResponse)
-def get_task_endpoint(
-    request: Request,
-    task_id: str,
-    session: ISession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-):
-    """
-    Endpoint to retrieve a specific task.
-    """
-    try:
-        task = get_task(session, id=task_id)
-    except Exception as e:
-        raise HTTPException(status_code=404, detail=str(e))
-    return templates.TemplateResponse(
-        "task/detail.html", {"request": request, "task": task}
-    )
-
-
-@task_router.put("/{task_id}", response_model=TaskResponseModel)
-def update_task_endpoint(
-    task_id: str,
-    task_update: TaskCreateModel,
-    session: ISession = Depends(get_session),
-):
-    """
-    Endpoint to update an existing task.
-    """
-    try:
-        task = update_task(task_id, task_update, session)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    return task
-
-
-@task_router.post("/upsert", response_model=TaskResponseModel)
-def upsert_task_endpoint(
-    task: TaskResponseModel, session: ISession = Depends(get_session)
-):
-    """
-    Endpoint to upsert a task.
-    """
-    try:
-        task = upsert_task(task, session)
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    return task
-
-
-@task_router.get("/", response_class=HTMLResponse)
-def get_all_tasks_endpoint(
-    request: Request,
-    page: int = 1,
-    sort: Optional[str] = "Date",
-    order: Optional[str] = "desc",
-    limit: int = 15,
-    combined_filters: Optional[str] = Query(None),
-    session: ISession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-):
-    sort_mapping = {
-        "Title": Task.title,
-        "Hours Required": Task.hours_required,
-        "Hours Worked": Task.hours_worked,
-        "Status": Task.status,
-        "Date": Task.timestamp,
-        "Last Updated": Task.last_updated,
-    }
-
-    order_by = get_sorting(sort, order, sort_mapping)
-    pagination = Pagination(limit=limit, current_page=page, order_by=order_by)
-
-    filter_mapping = {
-        "Title": "title",
-        "Project": "project_name",
-        "Hours Required": "hours_required",
-        "Hours Worked": "hours_worked",
-        "Status": "status",
-        "Date": "timestamp",
-        "Last Updated": "last_updated",
-        "User": "user_name",
-    }
-
-    filters = get_filters(
-        combined_filters,
-        filter_mapping,
-        "Title",
-        date_fields=["Date", "Last Updated"],
-    )
-
-    if is_admin(current_user):
-        tasks, pagination = get_all_tasks(session, pagination, **filters)
-    else:
-        tasks, pagination = get_user_tasks(
-            session, current_user.id, pagination, **filters
-        )
-
-    table_headers = [
-        "Title",
-        "Project",
-        "Hours Required",
-        "Hours Worked",
-        "Description",
-        "Date",
-        "Status",
-        "Logs",
-        "Last Updated",
-        "Actions",
-    ]
-
-    return templates.TemplateResponse(
-        "task/tasks.html",
-        {
-            "request": request,
-            "headers": table_headers,
-            "data": tasks,
-            "pagination": pagination,
-            "entity": "task",
-            "current_sort": sort,
-            "current_order": order,
-            "allowed_filter_fields": [
-                "Title",
-                "Project",
-                "Hours Required",
-                "Hours Worked",
-                "Status",
-                "User",
-            ],
-        },
-    )
-
-
-@task_router.get("/project/{project_id}", response_class=HTMLResponse)
-def get_tasks_by_project_endpoint(
-    request: Request,
-    project_id: str,
-    page: int = 1,
-    sort: Optional[str] = None,
-    order: Optional[str] = None,
-    limit: int = 15,
-    session: ISession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-):
-    sort_mapping = {
-        "Title": Task.title,
-        "Hours Required": Task.hours_required,
-        "Hours Worked": Task.hours_worked,
-        "Status": Task.status,
-        "Date": Task.timestamp,
-        "Last Updated": Task.last_updated,
-    }
-
-    order_by = get_sorting(sort, order, sort_mapping)
-    pagination = Pagination(limit=limit, current_page=page, order_by=order_by)
-
-    tasks, pagination = get_project_tasks(session, project_id, pagination)
-
-    context = {
-        "request": request,
-        "headers": [
-            "Title",
+            "User",
             "Project",
+            "Status",
             "Hours Required",
             "Hours Worked",
-            "Description",
             "Date",
-            "Status",
-            "Logs",
-            "Last Updated",
-        ],
-        "data": tasks,
-        "pagination": pagination,
-        "entity": "task",
-        "current_sort": sort,
-        "current_order": order,
-    }
-    return templates.TemplateResponse("task/tasks.html", context)
+        ]
+    )
+
+    for task in result.items:
+        writer.writerow(
+            [
+                task.id,
+                task.title,
+                task.user_name,
+                task.project_name,
+                task.status or "",
+                task.hours_required,
+                task.hours_worked,
+                datetime.fromtimestamp(task.timestamp).strftime(
+                    "%Y-%m-%d %H:%M:%S"
+                ),
+            ]
+        )
+
+    output.seek(0)
+
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=tasks.csv"},
+    )
 
 
-@task_router.get("/user/{user_id}", response_class=HTMLResponse)
-def get_tasks_by_user_endpoint(
-    request: Request,
-    user_id: str,
-    page: int = 1,
-    sort: Optional[str] = None,
-    order: Optional[str] = None,
-    limit: int = 15,
+@task_router.get("/{task_id}", response_model=TaskDTO)
+def get_task_endpoint(
+    task_id: str,
     session: ISession = Depends(get_session),
     current_user: User = Depends(get_current_user),
+    task_service: TaskService = Depends(get_task_service),
 ):
-    sort_mapping = {
-        "Title": Task.title,
-        "Hours Required": Task.hours_required,
-        "Hours Worked": Task.hours_worked,
-        "Status": Task.status,
-        "Date": Task.timestamp,
-        "Last Updated": Task.last_updated,
-    }
+    result = task_service.get_by_id(task_id, session)
 
-    order_by = get_sorting(sort, order, sort_mapping)
-    pagination = Pagination(limit=limit, current_page=page, order_by=order_by)
+    if isinstance(result, Err):
+        raise HTTPException(status_code=404, detail=result.error)
 
+    task = result.value
+
+    if not is_admin(current_user) and task.user_id != current_user.id:
+        raise HTTPException(status_code=403, detail="Access forbidden")
+
+    return task
+
+
+@task_router.put("/{task_id}", response_model=TaskDTO)
+def update_task_endpoint(
+    task_id: str,
+    body: TaskUpdateRequest,
+    session: ISession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    task_service: TaskService = Depends(get_task_service),
+):
+    dto = TaskUpdateDTO(
+        title=body.title,
+        hours_required=body.hours_required,
+        description=body.description,
+        status=body.status,
+        user_id=body.user_id,
+        returned=body.returned,
+    )
+
+    result = task_service.update(
+        task_id,
+        dto,
+        current_user.id,
+        is_admin(current_user),
+        session,
+    )
+
+    if isinstance(result, Err):
+        raise HTTPException(status_code=400, detail=result.error)
+
+    return result.value
+
+
+@task_router.delete("/{task_id}", status_code=204)
+async def delete_task_endpoint(
+    task_id: str,
+    session: ISession = Depends(get_session),
+    current_user: User = Depends(require_admin),
+    task_service: TaskService = Depends(get_task_service),
+):
+    result = task_service.delete(task_id, session)
+
+    if isinstance(result, Err):
+        raise HTTPException(status_code=404, detail=result.error)
+
+
+@task_router.get("/{task_id}/logs", response_model=PaginatedLogsResponse)
+def get_task_logs_endpoint(
+    task_id: str,
+    page: int = Query(1, ge=1),
+    limit: int = Query(25, ge=1, le=100),
+    session: ISession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    task_service: TaskService = Depends(get_task_service),
+):
+    pagination = PaginationParams(page=page, per_page=limit)
+    result = task_service.get_task_logs(task_id, pagination, session)
+
+    return PaginatedLogsResponse(
+        items=result.items,
+        total=result.total,
+        page=result.page,
+        per_page=result.meta.per_page,
+        has_next=result.has_next,
+        has_prev=result.has_prev,
+    )
+
+
+@task_router.get(
+    "/project/{project_id}", response_model=PaginatedTasksResponse
+)
+def get_tasks_by_project_endpoint(
+    project_id: str,
+    page: int = Query(1, ge=1),
+    limit: int = Query(25, ge=1, le=100),
+    session: ISession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    task_service: TaskService = Depends(get_task_service),
+):
+    pagination = PaginationParams(page=page, per_page=limit)
+    result = task_service.list_all(pagination, session, project_id=project_id)
+
+    return PaginatedTasksResponse(
+        items=result.items,
+        total=result.total,
+        page=result.page,
+        per_page=result.meta.per_page,
+        has_next=result.has_next,
+        has_prev=result.has_prev,
+    )
+
+
+@task_router.get("/user/{user_id}", response_model=PaginatedTasksResponse)
+def get_tasks_by_user_endpoint(
+    user_id: str,
+    page: int = Query(1, ge=1),
+    limit: int = Query(25, ge=1, le=100),
+    session: ISession = Depends(get_session),
+    current_user: User = Depends(get_current_user),
+    task_service: TaskService = Depends(get_task_service),
+):
     if current_user.id != user_id and not is_admin(current_user):
         raise HTTPException(status_code=403, detail="Access forbidden")
 
-    tasks, pagination = get_user_tasks(session, user_id, pagination)
+    pagination = PaginationParams(page=page, per_page=limit)
+    result = task_service.list_for_user(user_id, pagination, session)
 
-    context = {
-        "request": request,
-        "headers": [
-            "Title",
-            "Project",
-            "Hours Required",
-            "Hours Worked",
-            "Description",
-            "Date",
-            "Status",
-            "Logs",
-            "Last Updated",
-        ],
-        "data": tasks,
-        "pagination": pagination,
-        "entity": "task",
-        "current_sort": sort,
-        "current_order": order,
-    }
-    return templates.TemplateResponse("task/tasks.html", context)
-
-
-@task_router.get("/{task_id}/logs", response_class=HTMLResponse)
-def get_logs_by_task_endpoint(
-    request: Request,
-    task_id: str,
-    page: int = 1,
-    sort: Optional[str] = None,
-    order: Optional[str] = None,
-    limit: int = 15,
-    session: ISession = Depends(get_session),
-    current_user: User = Depends(get_current_user),
-):
-    sort_mapping = {
-        "ID": Log.id,
-        "Task Name": Log.task_name,
-        "Hours ": Log.hours_spent_today,
-        "Task Status": Log.task_status,
-        "Date": Log.timestamp,
-    }
-
-    order_by = get_sorting(sort, order, sort_mapping)
-
-    pagination = Pagination(limit=limit, current_page=page, order_by=order_by)
-
-    logs, pagination = get_task_logs(session, task_id, pagination)
-
-    context = {
-        "request": request,
-        "headers": [
-            "Task Name",
-            "User",
-            "Hours Worked",
-            "Description",
-            "Date",
-            "Task Status",
-            "Actions",
-        ],
-        "data": logs,
-        "pagination": pagination,
-        "entity": "log",
-        "current_sort": sort,
-        "current_order": order,
-    }
-    return templates.TemplateResponse("log/logs.html", context)
+    return PaginatedTasksResponse(
+        items=result.items,
+        total=result.total,
+        page=result.page,
+        per_page=result.meta.per_page,
+        has_next=result.has_next,
+        has_prev=result.has_prev,
+    )

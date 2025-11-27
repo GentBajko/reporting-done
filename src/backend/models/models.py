@@ -1,20 +1,21 @@
-from typing import List, Optional
-from datetime import datetime
+from typing import Sequence
+from datetime import date
 
-from ulid import ULID
-from pydantic import Field, EmailStr, BaseModel, validator
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class LogCreateModel(BaseModel):
-    task_name: str
-    description: str
-    hours_spent_today: float
+    task_name: str = Field(max_length=500)
+    description: str = Field(max_length=10000)
+    hours_spent_today: float = Field(gt=0, le=24)
     task_status: str
-    id: str = Field(default=str(ULID()))
+    id: str
     user_id: str
-    user_name: str
-    timestamp: int = Field(default=datetime.now().timestamp())
-    task_id: str = Field(default=str(ULID()))
+    user_name: str = Field(max_length=255)
+    timestamp: int = Field(ge=0)
+    task_id: str
+    
+    model_config = {"str_strip_whitespace": True}
 
 
 class LogResponseModel(BaseModel):
@@ -27,22 +28,26 @@ class LogResponseModel(BaseModel):
     project_name: str
     hours_spent_today: float
     task_status: str
-    timestamp: int = Field(default=datetime.now().timestamp())
-    task_id: str = Field(default=str(ULID()))
+    timestamp: int
+    task_id: str
+    
+    model_config = {"from_attributes": True}
 
 
 class TaskCreateModel(BaseModel):
     project_id: str
-    project_name: str
+    project_name: str = Field(max_length=255)
     user_id: str
-    user_name: str
-    title: str
-    hours_required: float
-    hours_worked: float = 0.0
+    user_name: str = Field(max_length=255)
+    title: str = Field(min_length=1, max_length=500)
+    hours_required: float = Field(ge=0)
+    hours_worked: float = Field(default=0.0, ge=0)
     returned: bool = False
-    description: str
-    status: Optional[str] = None
-    timestamp: int = Field(default=int(datetime.now().timestamp()))
+    description: str = Field(max_length=10000)
+    status: str | None = None
+    timestamp: int = Field(ge=0)
+    
+    model_config = {"str_strip_whitespace": True}
 
 
 class TaskResponseModel(BaseModel):
@@ -56,44 +61,64 @@ class TaskResponseModel(BaseModel):
     hours_worked: float
     returned: bool = False
     description: str
-    logs: List[LogCreateModel]
-    status: Optional[str] = None
-    last_updated: Optional[int] = Field(default=None)
-    timestamp: int = Field(default=int(datetime.now().timestamp()))
+    logs: Sequence[LogCreateModel] = Field(default_factory=list)
+    status: str | None = None
+    last_updated: int | None = None
+    timestamp: int
+    
+    model_config = {"from_attributes": True}
 
 
 class ProjectCreateModel(BaseModel):
-    name: str
-    send_email: bool
-    email: Optional[EmailStr] = None
+    name: str = Field(min_length=1, max_length=255)
+    send_email: bool = False
+    email: EmailStr | None = None
     archived: bool = False
-
-    @validator('email', pre=True, always=True)
-    def empty_str_to_none(cls, v):
-        if v == '':
+    
+    @field_validator("email", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, v: str | None) -> str | None:
+        if v == "":
             return None
         return v
+    
+    model_config = {"str_strip_whitespace": True}
+
 
 class ProjectResponseModel(BaseModel):
     id: str
     name: str
     send_email: bool
     archived: bool
-    email: Optional[EmailStr] = None
-    developers: List["UserResponseModel"] = Field(default_factory=list)
-    tasks: List[TaskResponseModel] = Field(default_factory=list)
-
-    @validator('email', pre=True, always=True)
-    def empty_str_to_none(cls, v):
-        if v == '':
+    email: EmailStr | None = None
+    developers: Sequence["UserResponseModel"] = Field(default_factory=list)
+    tasks: Sequence[TaskResponseModel] = Field(default_factory=list)
+    
+    @field_validator("email", mode="before")
+    @classmethod
+    def empty_str_to_none(cls, v: str | None) -> str | None:
+        if v == "":
             return None
         return v
+    
+    model_config = {"from_attributes": True}
+
 
 class UserCreateModel(BaseModel):
     email: EmailStr
-    password: str
-    full_name: str
-    permissions: int
+    password: str = Field(min_length=8, max_length=128)
+    full_name: str = Field(min_length=1, max_length=255)
+    permissions: int = Field(ge=0)
+    
+    model_config = {"str_strip_whitespace": True}
+
+
+class UserProfileUpdateModel(BaseModel):
+    full_name: str | None = Field(default=None, min_length=1, max_length=255)
+    email: EmailStr | None = None
+    permissions: int | None = Field(default=None, ge=0)
+    
+    model_config = {"str_strip_whitespace": True}
 
 
 class UserResponseModel(BaseModel):
@@ -101,13 +126,45 @@ class UserResponseModel(BaseModel):
     email: EmailStr
     full_name: str
     permissions: int
-    tasks: List[TaskResponseModel] = Field(default_factory=list)
-    projects: List["ProjectResponseModel"] = Field(default_factory=list)
+    tasks: Sequence[TaskResponseModel] = Field(default_factory=list)
+    projects: Sequence["ProjectResponseModel"] = Field(default_factory=list)
+    
+    model_config = {"from_attributes": True}
 
 
 class UserLoginModel(BaseModel):
-    email: str
-    password: str
+    email: EmailStr
+    password: str = Field(min_length=1)
+    
+    model_config = {"str_strip_whitespace": True}
+
+
+class AvailabilityResponseModel(BaseModel):
+    id: str
+    user_id: str
+    day: date
+    present: bool
+    
+    model_config = {"from_attributes": True}
+
+
+class UserCalendarResponseModel(BaseModel):
+    user_id: str
+    month: int = Field(ge=1, le=12)
+    year: int = Field(ge=2000, le=2100)
+    office_days: Sequence[date] | None = None
+    total_office_days: int | None = Field(default=None, ge=0)
+    availability: dict[str, bool] | None = None
+    
+    model_config = {"from_attributes": True}
+
+
+class DailyAvailabilityResponseModel(BaseModel):
+    date: date
+    users_in_office: Sequence[UserResponseModel]
+    total_in_office: int = Field(ge=0)
+    
+    model_config = {"from_attributes": True}
 
 
 UserResponseModel.model_rebuild()

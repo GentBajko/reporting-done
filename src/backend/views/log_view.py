@@ -4,7 +4,6 @@ from datetime import UTC, datetime, timedelta
 from ulid import ULID
 from loguru import logger
 
-from backend.dependencies.db_session import get_session
 from backend.models import LogCreateModel, LogResponseModel
 from core.models.log import Log
 from database.models import log_mapper  # noqa F401
@@ -17,6 +16,7 @@ from backend.utils.pagination import calculate_pagination
 from backend.models.pagination import Pagination
 from backend.utils.send_emails import send_email_to_user
 from database.interfaces.session import ISession
+from backend.dependencies.db_session import get_session
 from database.repositories.repository import Repository
 
 
@@ -71,7 +71,7 @@ def create_log(log: LogCreateModel, session: ISession) -> LogResponseModel:
         send_email_to_user(
             to=user.email,
             title=(
-                f"[Division 5] Daily Report - "
+                f"[BusinessDone] Daily Report - "
                 f"{datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d')}"
             ),
             message=html_content,
@@ -165,7 +165,7 @@ def get_all_logs(
         pagination = calculate_pagination(
             total=total,
             page=pagination.current_page or 1,
-            per_page=pagination.limit or 15,
+            per_page=pagination.limit or 25,
         )
         pagination.order_by = order_by
 
@@ -207,7 +207,6 @@ async def get_projects_with_recent_logs() -> Dict[Project, List[Log]]:
 
     recent_logs = log_repository.query(timestamp__gte=past_24h_timestamp)
 
-
     logs_by_project_id: Dict[str, List[Log]] = {}
     for log in recent_logs:
         logs_by_project_id.setdefault(log.project_id, []).append(log)
@@ -220,9 +219,13 @@ async def get_projects_with_recent_logs() -> Dict[Project, List[Log]]:
 
     projects = project_repository.query(in_={Project.id: project_ids})
 
-    logger.info(f"Found {len(recent_logs)} logs from the last 24 hours for {len(project_ids)} projects.")
+    logger.info(
+        f"Found {len(recent_logs)} logs from the last 24 hours for {len(project_ids)} projects."
+    )
 
-    projects_map: Dict[str, Project] = {project.id: project for project in projects}
+    projects_map: Dict[str, Project] = {
+        project.id: project for project in projects
+    }
 
     # Map each Project to its corresponding Logs
     projects_with_logs: Dict[Project, List[Log]] = {}
@@ -243,7 +246,7 @@ async def get_projects_with_recent_logs() -> Dict[Project, List[Log]]:
             send_email_to_user(
                 to=project.email,
                 title=(
-                    f"[Division 5] Daily Project Report - "
+                    f"[BusinessDone] Daily Project Report - "
                     f"{datetime.fromtimestamp(timestamp).strftime('%Y-%m-%d')}"
                 ),
                 message=html,

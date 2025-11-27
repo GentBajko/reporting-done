@@ -7,6 +7,7 @@ from backend.models import (
     UserCreateModel,
     UserResponseModel,
     ProjectResponseModel,
+    UserProfileUpdateModel,
 )
 from core.models.log import Log
 from database.models import user_mapper  # noqa F401
@@ -97,18 +98,18 @@ def get_user(session: ISession, **kwargs) -> UserResponseModel:
 
 
 def update_user(
-    user_id: str, user_update: UserCreateModel, session: ISession
+    user_id: str, user_update_data: UserProfileUpdateModel, session: ISession
 ) -> UserResponseModel:
     """
-    Update an existing user's information.
+    Update an existing user's profile information (full_name, email).
 
     This function rebuilds the necessary models, retrieves the existing user by `user_id`, and updates
-    the user's attributes with the provided `user_update` data. It then persists the changes to the
+    the user's attributes with the provided `user_update_data` data. It then persists the changes to the
     database, populates developer fields, and returns the updated user as a `UserResponseModel`.
 
     Args:
         user_id (str): The unique identifier of the user to update.
-        user_update (UserCreateModel): An instance containing the updated user data.
+        user_update_data (UserProfileUpdateModel): An instance containing the updated user data (full_name, email).
         session (ISession): The database session used for interacting with the database.
 
     Returns:
@@ -124,16 +125,22 @@ def update_user(
         if not existing_user:
             raise ValueError(f"User with id {user_id} does not exist.")
 
-        user_data = user_update.model_dump(exclude_unset=True)
+        # Get data from UserProfileUpdateModel, only fields that are set (not None)
+        update_data = user_update_data.model_dump(exclude_unset=True)
 
-        if "password" in user_data:
-            ph = PasswordHasher()
-            user_data["password"] = ph.hash(user_data["password"])
+        # Ensure only allowed fields are updated and no password/permissions here
+        allowed_fields_to_update = ["full_name", "email", "permissions"]
 
-        for key, value in user_data.items():
-            setattr(existing_user, key, value)
+        something_updated = False
+        for key, value in update_data.items():
+            if key in allowed_fields_to_update:
+                setattr(existing_user, key, value)
+                something_updated = True
+            # else: log a warning or ignore fields not in allowed_fields_to_update
 
-        repository.update(existing_user)
+        if something_updated:
+            repository.update(existing_user)
+        # else: no actual changes were made to allowed fields
 
     return UserResponseModel.model_validate(existing_user.to_dict())
 
@@ -187,7 +194,7 @@ def get_all_users(
         pagination = calculate_pagination(
             total=total,
             page=pagination.current_page or 1,
-            per_page=pagination.limit or 15,
+            per_page=pagination.limit or 25,
         )
 
         pagination.order_by = order_by
@@ -237,7 +244,7 @@ def get_user_tasks(
         pagination = calculate_pagination(
             total=total,
             page=pagination.current_page or 1,
-            per_page=pagination.limit or 15,
+            per_page=pagination.limit or 25,
         )
 
         pagination.order_by = order_by
@@ -288,7 +295,7 @@ def get_project_by_user(
         pagination = calculate_pagination(
             total=total,
             page=pagination.current_page or 1,
-            per_page=pagination.limit or 15,
+            per_page=pagination.limit or 25,
         )
 
         pagination.order_by = order_by
@@ -316,6 +323,7 @@ def get_project_by_user(
 
     return output, pagination
 
+
 def get_user_logs(
     session: ISession, user_id: str, pagination: Pagination, **kwargs
 ) -> Tuple[List[LogResponseModel], Pagination]:
@@ -328,7 +336,7 @@ def get_user_logs(
         pagination = calculate_pagination(
             total=total,
             page=pagination.current_page or 1,
-            per_page=pagination.limit or 15,
+            per_page=pagination.limit or 25,
         )
 
         pagination.order_by = order_by
@@ -349,4 +357,3 @@ def get_user_logs(
         ]
 
     return logs_list, pagination
-

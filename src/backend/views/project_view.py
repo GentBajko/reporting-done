@@ -1,13 +1,10 @@
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
 from ulid import ULID
 from loguru import logger
 
 from backend.models import ProjectCreateModel, ProjectResponseModel
-from database.models import (
-    project_mapper,  # noqa F401
-    project_developers_table,  # noqa F401
-)
+import database.models.project_mapper  # noqa: F401
 from core.models.task import Task
 from core.models.user import User
 from core.models.project import Project
@@ -66,20 +63,31 @@ def update_project(
     Update an existing project's information.
     """
     with session as s:
-        repository = Repository(s, Project)
-        existing_project = repository.get(project_id)
+        repo = Repository[Project](s, Project)
+        projects = repo.query(
+            id=project_id, options=[Project.developers, Project.tasks]  # type: ignore
+        )
+        project = projects[0] if projects else None
 
-        if not existing_project:
+        if not project:
             raise ValueError(f"Project with id {project_id} does not exist.")
 
-        project_data = project_update.model_dump(exclude_unset=True)
+        for attr, value in project_update.model_dump(
+            exclude_unset=True
+        ).items():
+            setattr(project, attr, value)
 
-        for key, value in project_data.items():
-            setattr(existing_project, key, value)
-
-        repository.update(existing_project)
-        project_dict = existing_project.to_dict()
-    return ProjectResponseModel.model_validate(project_dict)
+        s.commit()
+        updated_projects = repo.query(
+            id=project_id, options=[Project.developers, Project.tasks]  # type: ignore
+        )
+        updated_project_orm = updated_projects[0] if updated_projects else None
+        if not updated_project_orm:
+            raise ValueError(
+                "Project disappeared after update"
+            )
+        project_data = updated_project_orm.to_dict()
+    return ProjectResponseModel.model_validate(project_data)
 
 
 def upsert_project(
@@ -141,7 +149,7 @@ def get_all_projects(
         pagination = calculate_pagination(
             total=total,
             page=pagination.current_page or 1,
-            per_page=pagination.limit or 15,
+            per_page=pagination.limit or 25,
         )
 
         pagination.order_by = order_by
@@ -202,7 +210,7 @@ def get_users_projects(
             pagination = calculate_pagination(
                 total=1,
                 page=pagination.current_page or 1,
-                per_page=pagination.limit or 15,
+                per_page=pagination.limit or 25,
             )
 
             associations = assoc_repo.query(
@@ -215,7 +223,7 @@ def get_users_projects(
             project_ids = [assoc.project_id for assoc in associations]
 
             if not project_ids:
-                pagination = calculate_pagination(total=0, page=1, per_page=15)
+                pagination = calculate_pagination(total=0, page=1, per_page=25)
                 return [], pagination
 
             project_repo = Repository(s, Project)
@@ -228,7 +236,7 @@ def get_users_projects(
             )
 
             pagination = calculate_pagination(
-                total=len(projects), page=1, per_page=15
+                total=len(projects), page=1, per_page=25
             )
 
             if not projects:
@@ -339,7 +347,7 @@ def get_user_by_project(
         pagination = calculate_pagination(
             total=total,
             page=pagination.current_page or 1,
-            per_page=pagination.limit or 15,
+            per_page=pagination.limit or 25,
         )
 
         pagination.order_by = order_by
@@ -409,7 +417,7 @@ def get_project_tasks(
         pagination = calculate_pagination(
             total=total,
             page=pagination.current_page or 1,
-            per_page=pagination.limit or 15,
+            per_page=pagination.limit or 25,
         )
 
         pagination.order_by = order_by
