@@ -133,9 +133,9 @@ def get_all_tasks_endpoint(
     if returned is not None:
         filters["returned"] = returned
     if date_from is not None:
-        filters["timestamp__gte"] = date_from
+        filters["created_at__gte"] = date_from
     if date_to is not None:
-        filters["timestamp__lte"] = date_to
+        filters["created_at__lte"] = date_to
 
     if is_admin(current_user):
         result = task_service.list_all(pagination, session, **filters)

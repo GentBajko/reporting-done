@@ -78,7 +78,13 @@ async def upload_xlsx(
                 continue
             
             for full_name in names:
-                users = user_repo.query(full_name=full_name)
+                # Split full_name into name and last_name for database query
+                # The XLSX parser creates "first_name last_name" format
+                name_parts = full_name.split(" ", 1)
+                name = name_parts[0]
+                last_name = name_parts[1] if len(name_parts) > 1 else ""
+
+                users = user_repo.query(name=name, last_name=last_name)
                 if not users:
                     continue
                 

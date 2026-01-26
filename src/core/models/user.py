@@ -168,6 +168,7 @@ class User:
                 "email": self.email,
                 "name": self.name,
                 "last_name": self.last_name,
+                "full_name": self.full_name,
                 "permissions": self.permissions,
             }
 
@@ -178,6 +179,7 @@ class User:
             "email": self.email,
             "name": self.name,
             "last_name": self.last_name,
+            "full_name": self.full_name,
             "phone": self.phone,
             "organizationId": self.organization_id,
             "role_type": self.role_type,
