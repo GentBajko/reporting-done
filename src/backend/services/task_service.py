@@ -53,7 +53,7 @@ class TaskService:
                 returned=False,
                 description=data.description,
                 status=data.status,
-                timestamp=int(datetime.now().timestamp()),
+                created_at=datetime.now(),
                 logs=[],
             )
             
@@ -103,7 +103,7 @@ class TaskService:
                 if value is not None:
                     setattr(task, field, value)
             
-            task.last_updated = int(datetime.now().timestamp())
+            task.updated_at = datetime.now()
             
             s.commit()
             

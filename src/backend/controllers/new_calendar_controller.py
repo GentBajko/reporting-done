@@ -63,8 +63,13 @@ class TaskResponse(BaseModel):
     id: str
     title: str
     description: str
-    timestamp: int
+    created_at: int
     status: str | None = None
+
+    # Legacy field alias
+    @property
+    def timestamp(self) -> int:
+        return self.created_at
 
 
 class UserCalendarResponse(BaseModel):
@@ -166,15 +171,15 @@ def get_user_calendar_endpoint(
         session,
     )
     
-    first_day_ts = int(datetime(year, month, 1).timestamp())
+    first_day = datetime(year, month, 1)
     last_day = calendar.monthrange(year, month)[1]
-    last_day_ts = int(datetime(year, month, last_day, 23, 59, 59).timestamp())
-    
+    last_day_dt = datetime(year, month, last_day, 23, 59, 59)
+
     month_tasks = [
         t for t in tasks_result.items
-        if first_day_ts <= t.timestamp <= last_day_ts
+        if first_day <= t.created_at.replace(tzinfo=None) <= last_day_dt
     ]
-    
+
     return UserCalendarResponse(
         user_id=dto.user_id,
         user_name=dto.user_name,
@@ -193,7 +198,7 @@ def get_user_calendar_endpoint(
                 id=t.id,
                 title=t.title,
                 description=t.description,
-                timestamp=t.timestamp,
+                created_at=int(t.created_at.timestamp()),
                 status=t.status,
             )
             for t in month_tasks

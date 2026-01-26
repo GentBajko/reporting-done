@@ -22,10 +22,10 @@
         <div>
             <p style="margin: 8px 0;"><strong>Developer:</strong> {{ log.user_name }}</p>
             <p style="margin: 8px 0;"><strong>Description:</strong> {{ log.description }}</p>
-            <p style="margin: 8px 0;"><strong>Hours Worked Today:</strong> {{ log.hours_spent_today }}</p>
+            <p style="margin: 8px 0;"><strong>Hours Worked Today:</strong> {{ log.hours_spent }}</p>
             <p style="margin: 8px 0;"><strong>Status:</strong> {{ log.task_status }}</p>
             <p style="margin: 8px 0;"><strong>Log Description:</strong> {{ log.description }}</p>
-            <p style="margin: 8px 0;"><strong>Timestamp:</strong> {{ log.timestamp | date_to_string }}</p>
+            <p style="margin: 8px 0;"><strong>Timestamp:</strong> {{ log.created_at | date_to_string }}</p>
         </div>
     </div>
     {% else %}

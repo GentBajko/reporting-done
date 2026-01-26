@@ -15,9 +15,14 @@ class PydanticBackendTask(BaseModel):
     id: str
     title: str = Field(max_length=500)
     description: str = Field(max_length=10000)
-    timestamp: int = Field(ge=0)
+    created_at: int = Field(ge=0)
     status: str | None = None
-    
+
+    # Legacy field alias
+    @property
+    def timestamp(self) -> int:
+        return self.created_at
+
     model_config = {"str_strip_whitespace": True}
 
 

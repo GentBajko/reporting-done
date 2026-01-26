@@ -1,4 +1,4 @@
-from sqlalchemy import Table, Column, String, BigInteger, ForeignKey
+from sqlalchemy import Date, DateTime, Table, Column, String, Time, ForeignKey
 from sqlalchemy.orm import relationship
 
 from core.models.event import Event
@@ -12,10 +12,10 @@ event_table = Table(
     Column("title", String(255), nullable=False),
     Column("description", String(1000), nullable=True),
     Column("event_type", String(50), nullable=False),
-    Column("event_date", BigInteger, nullable=False),
-    Column("start_time", String(5), nullable=True),
-    Column("end_time", String(5), nullable=True),
-    Column("created_at", BigInteger, nullable=False),
+    Column("event_date", Date, nullable=False),
+    Column("start_time", Time, nullable=True),
+    Column("end_time", Time, nullable=True),
+    Column("created_at", DateTime(timezone=True), nullable=False),
 )
 
 mapper_registry.map_imperatively(

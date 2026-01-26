@@ -1,4 +1,4 @@
-from sqlalchemy import Float, Table, Column, String, BigInteger, ForeignKey
+from sqlalchemy import DateTime, Float, Table, Column, String, ForeignKey
 from sqlalchemy.orm import relationship
 
 from core.models.log import Log
@@ -8,7 +8,7 @@ task_log_table = Table(
     "task_logs",
     mapper_registry.metadata,
     Column("id", String(26), primary_key=True),
-    Column("timestamp", BigInteger, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
     Column("task_id", String(26), ForeignKey("tasks.id"), nullable=False),
     Column("task_name", String(100), nullable=False),
     Column("description", String(255), nullable=True),
@@ -16,7 +16,7 @@ task_log_table = Table(
     Column("user_name", String(50), nullable=False),
     Column("project_id", String(26), ForeignKey("projects.id"), nullable=False),
     Column("project_name", String(100), nullable=False),
-    Column("hours_spent_today", Float, nullable=False),
+    Column("hours_spent", Float, nullable=False),
     Column("task_status", String(50), nullable=False),
 )
 

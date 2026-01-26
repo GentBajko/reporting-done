@@ -7,14 +7,23 @@ from pydantic import BaseModel, EmailStr, Field, field_validator
 class LogCreateModel(BaseModel):
     task_name: str = Field(max_length=500)
     description: str = Field(max_length=10000)
-    hours_spent_today: float = Field(gt=0, le=24)
+    hours_spent: float = Field(gt=0, le=24)
     task_status: str
     id: str
     user_id: str
     user_name: str = Field(max_length=255)
-    timestamp: int = Field(ge=0)
+    created_at: int = Field(ge=0)
     task_id: str
-    
+
+    # Legacy field aliases
+    @property
+    def hours_spent_today(self) -> float:
+        return self.hours_spent
+
+    @property
+    def timestamp(self) -> int:
+        return self.created_at
+
     model_config = {"str_strip_whitespace": True}
 
 
@@ -26,11 +35,20 @@ class LogResponseModel(BaseModel):
     user_name: str
     project_id: str
     project_name: str
-    hours_spent_today: float
+    hours_spent: float
     task_status: str
-    timestamp: int
+    created_at: int
     task_id: str
-    
+
+    # Legacy field aliases
+    @property
+    def hours_spent_today(self) -> float:
+        return self.hours_spent
+
+    @property
+    def timestamp(self) -> int:
+        return self.created_at
+
     model_config = {"from_attributes": True}
 
 
@@ -45,8 +63,13 @@ class TaskCreateModel(BaseModel):
     returned: bool = False
     description: str = Field(max_length=10000)
     status: str | None = None
-    timestamp: int = Field(ge=0)
-    
+    created_at: int = Field(ge=0)
+
+    # Legacy field alias
+    @property
+    def timestamp(self) -> int:
+        return self.created_at
+
     model_config = {"str_strip_whitespace": True}
 
 
@@ -63,9 +86,18 @@ class TaskResponseModel(BaseModel):
     description: str
     logs: Sequence[LogCreateModel] = Field(default_factory=list)
     status: str | None = None
-    last_updated: int | None = None
-    timestamp: int
-    
+    updated_at: int | None = None
+    created_at: int
+
+    # Legacy field aliases
+    @property
+    def last_updated(self) -> int | None:
+        return self.updated_at
+
+    @property
+    def timestamp(self) -> int:
+        return self.created_at
+
     model_config = {"from_attributes": True}
 
 

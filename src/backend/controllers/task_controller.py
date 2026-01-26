@@ -215,7 +215,7 @@ def export_tasks_csv(
                 task.status or "",
                 task.hours_required,
                 task.hours_worked,
-                datetime.fromtimestamp(task.timestamp).strftime(
+                datetime.fromtimestamp(task.created_at).strftime(
                     "%Y-%m-%d %H:%M:%S"
                 ),
             ]

@@ -65,23 +65,23 @@ def get_new_calendar_data_for_user(
 
     task_list: List[PydanticBackendTask] = []
     task_repo = Repository(session, Task)
-    start_timestamp = int(datetime(year, month, 1, 0, 0, 0).timestamp())
-    end_timestamp = int(datetime(year, month, num_days_in_month, 23, 59, 59).timestamp())
+    start_date = datetime(year, month, 1, 0, 0, 0)
+    end_date = datetime(year, month, num_days_in_month, 23, 59, 59)
     user_tasks: List[Task] = task_repo.query(
         user_id=user_id,
-        timestamp__gte=start_timestamp,
-        timestamp__lte=end_timestamp,
+        created_at__gte=start_date,
+        created_at__lte=end_date,
     )
 
     for task_item in user_tasks:
-        unix_timestamp = task_item.timestamp
+        unix_timestamp = int(task_item.created_at.timestamp())
 
         task_list.append(
             PydanticBackendTask(
                 id=task_item.id,
                 title=task_item.title,
                 description=task_item.description,
-                timestamp=unix_timestamp,
+                created_at=unix_timestamp,
                 status=task_item.status,
             )
         )
