@@ -33,7 +33,7 @@ interface SummaryTask {
 
 interface SummaryLog {
   id: string;
-  timestamp: number;
+  created_at: number;
 }
 
 const StatCard = ({

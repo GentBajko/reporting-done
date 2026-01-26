@@ -21,7 +21,7 @@ interface BackendTask {
   id: string;
   title: string;
   description: string;
-  timestamp: number;
+  created_at: number;
   status: string | null;
 }
 
@@ -244,7 +244,7 @@ const CalendarPage = () => {
           fetchedEvents.push({
             id: `task-${task.id}`,
             title: task.title,
-            date: new Date(task.timestamp * 1000).toISOString().split("T")[0],
+            date: new Date(task.created_at * 1000).toISOString().split("T")[0],
             type: "Task",
             description: task.description,
           });

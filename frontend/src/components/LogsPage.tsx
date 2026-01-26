@@ -69,7 +69,7 @@ const LogsPage = () => {
   const [formData, setFormData] = useState({
     task_id: "",
     description: "",
-    hours_spent_today: 0,
+    hours_spent: 0,
     task_status: "In Progress",
   });
 
@@ -200,7 +200,7 @@ const LogsPage = () => {
     setFormData({
         task_id: "",
         description: "",
-        hours_spent_today: 0,
+        hours_spent: 0,
         task_status: "In Progress"
     });
     setIsModalOpen(true);
@@ -213,7 +213,7 @@ const LogsPage = () => {
     setFormData({
       task_id: log.task_id,
       description: log.description,
-      hours_spent_today: log.hours_spent_today,
+      hours_spent: log.hours_spent,
       task_status: log.task_status,
     });
     setIsEditModalOpen(true);
@@ -238,7 +238,7 @@ const LogsPage = () => {
     const { name, value } = e.target;
     setFormData((prev) => ({
       ...prev,
-      [name]: name === 'hours_spent_today' ? parseFloat(value) : value,
+      [name]: name === 'hours_spent' ? parseFloat(value) : value,
     }));
   };
 
@@ -248,7 +248,7 @@ const LogsPage = () => {
       const payload = {
           task_id: formData.task_id,
           description: formData.description,
-          hours_spent_today: formData.hours_spent_today,
+          hours_spent: formData.hours_spent,
           task_status: formData.task_status
       };
 
@@ -291,7 +291,7 @@ const LogsPage = () => {
       header: "Timestamp",
       accessor: (log: Log) => (
         <div>
-            <div className="text-sm text-gray-900">{new Date(log.timestamp * 1000).toLocaleString()}</div>
+            <div className="text-sm text-gray-900">{new Date(log.created_at * 1000).toLocaleString()}</div>
             <div className="text-xs text-gray-500">ID: {log.id}</div>
         </div>
       ),
@@ -317,7 +317,7 @@ const LogsPage = () => {
         <div>
             <div className="text-sm text-gray-700 truncate w-48" title={log.description}>{log.description}</div>
             <div className="flex items-center mt-1 text-xs text-gray-500">
-                <HiOutlineClock className="mr-1" /> {log.hours_spent_today} hrs
+                <HiOutlineClock className="mr-1" /> {log.hours_spent} hrs
             </div>
         </div>
       ),
@@ -556,8 +556,8 @@ const LogsPage = () => {
             <label className="block text-sm font-medium text-gray-700">Hours Spent *</label>
             <input
               type="number"
-              name="hours_spent_today"
-              value={formData.hours_spent_today}
+              name="hours_spent"
+              value={formData.hours_spent}
               onChange={handleInputChange}
               required
               min="0.1"
@@ -634,7 +634,7 @@ const LogsPage = () => {
                       </div>
                       <div>
                           <h4 className="text-sm font-medium text-gray-500">Timestamp</h4>
-                          <p className="mt-1 text-gray-900">{new Date(viewingLog.timestamp * 1000).toLocaleString()}</p>
+                          <p className="mt-1 text-gray-900">{new Date(viewingLog.created_at * 1000).toLocaleString()}</p>
                       </div>
                       <div className="border-t pt-4">
                            <h4 className="text-sm font-medium text-gray-500">Description</h4>
@@ -643,7 +643,7 @@ const LogsPage = () => {
                       <div className="flex justify-between items-center pt-2">
                           <div>
                               <h4 className="text-sm font-medium text-gray-500">Hours Spent</h4>
-                              <p className="mt-1 text-gray-900">{viewingLog.hours_spent_today}</p>
+                              <p className="mt-1 text-gray-900">{viewingLog.hours_spent}</p>
                           </div>
                           <div>
                                <h4 className="text-sm font-medium text-gray-500">Status Set</h4>
