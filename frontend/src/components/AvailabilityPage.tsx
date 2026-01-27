@@ -28,7 +28,7 @@ const AvailabilityPage = () => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [officeDays, setOfficeDays] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
+  const [_isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const minOfficeDaysPerWeek = 2;
@@ -368,7 +368,7 @@ const AvailabilityPage = () => {
           <>
             <div className="grid grid-cols-7 gap-px border-b border-gray-200 bg-gray-200">
               {calendarDays.map(
-                ({ date, isCurrentMonth, isOfficeDay, isWeekend }, index) => {
+                ({ date, isCurrentMonth, isOfficeDay, isWeekend }) => {
                   const dateKey = date.toISOString().split("T")[0];
                   let cellClasses =
                     "min-h-[80px] md:min-h-[100px] relative group transition-colors duration-150 ease-in-out bg-white flex flex-col";

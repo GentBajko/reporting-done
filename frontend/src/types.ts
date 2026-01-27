@@ -62,16 +62,18 @@ export interface Log {
   created_at: number;
 }
 
-export enum TaskStatus {
-  PLANNING = "Planning",
-  RESEARCH = "Research",
-  IMPLEMENTATION = "Implementation",
-  DONE = "Done",
-  CANCELLED = "Cancelled",
-  ON_HOLD = "On Hold",
-  TESTING = "Testing",
-  REVIEW = "Review",
-}
+export const TaskStatus = {
+  PLANNING: "Planning",
+  RESEARCH: "Research",
+  IMPLEMENTATION: "Implementation",
+  DONE: "Done",
+  CANCELLED: "Cancelled",
+  ON_HOLD: "On Hold",
+  TESTING: "Testing",
+  REVIEW: "Review",
+} as const;
+
+export type TaskStatus = (typeof TaskStatus)[keyof typeof TaskStatus];
 
 export const PERMISSIONS = {
   ADMIN: 127, 
