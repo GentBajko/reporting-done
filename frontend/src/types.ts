@@ -44,8 +44,8 @@ export interface Task {
   description: string;
   logs: Log[];
   status: string | null;
-  last_updated: number | null;
-  timestamp: number;
+  updated_at: number | null;
+  created_at: number;
 }
 
 export interface Log {
@@ -57,21 +57,23 @@ export interface Log {
   user_name: string;
   project_id: string;
   project_name: string;
-  hours_spent_today: number;
+  hours_spent: number;
   task_status: string;
-  timestamp: number;
+  created_at: number;
 }
 
-export enum TaskStatus {
-  PLANNING = "Planning",
-  RESEARCH = "Research",
-  IMPLEMENTATION = "Implementation",
-  DONE = "Done",
-  CANCELLED = "Cancelled",
-  ON_HOLD = "On Hold",
-  TESTING = "Testing",
-  REVIEW = "Review",
-}
+export const TaskStatus = {
+  PLANNING: "Planning",
+  RESEARCH: "Research",
+  IMPLEMENTATION: "Implementation",
+  DONE: "Done",
+  CANCELLED: "Cancelled",
+  ON_HOLD: "On Hold",
+  TESTING: "Testing",
+  REVIEW: "Review",
+} as const;
+
+export type TaskStatus = (typeof TaskStatus)[keyof typeof TaskStatus];
 
 export const PERMISSIONS = {
   ADMIN: 127, 

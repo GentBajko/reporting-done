@@ -1,11 +1,6 @@
 import { useState, useCallback } from 'react';
 import { useAuth } from './useAuth';
 
-interface UseApiOptions<T = unknown> {
-  onSuccess?: (data: T) => void;
-  onError?: (error: Error) => void;
-}
-
 export const useApi = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   HiOutlineClock,
   HiOutlineCollection,
@@ -631,7 +631,7 @@ const TasksPage = () => {
                                  <li key={log.id} className="bg-gray-50 p-3 rounded border border-gray-200">
                                      <div className="flex justify-between items-start">
                                          <div className="text-sm font-medium text-gray-900">
-                                             {new Date(log.timestamp * 1000).toLocaleString()}
+                                             {new Date(log.created_at * 1000).toLocaleString()}
                                          </div>
                                          <span className={`px-2 text-xs rounded-full ${log.task_status === 'Done' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
                                              {log.task_status}
@@ -640,7 +640,7 @@ const TasksPage = () => {
                                      <p className="text-sm text-gray-700 mt-1">{log.description}</p>
                                      <div className="text-xs text-gray-500 mt-2 flex justify-between">
                                          <span>User: {log.user_name}</span>
-                                         <span>Hours: {log.hours_spent_today}</span>
+                                         <span>Hours: {log.hours_spent}</span>
                                      </div>
                                  </li>
                              ))}

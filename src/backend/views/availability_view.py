@@ -70,7 +70,7 @@ def get_user_availability_data(
                 id=task_orm.id,
                 title=task_orm.title,
                 description=task_orm.description,
-                timestamp=task_orm.timestamp,
+                created_at=int(task_orm.created_at.timestamp()),
                 status=task_orm.status,
             )
         )

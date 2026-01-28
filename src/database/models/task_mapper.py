@@ -1,10 +1,10 @@
 from sqlalchemy import (
+    DateTime,
     Float,
     Table,
     Column,
     String,
     Boolean,
-    BigInteger,
     ForeignKey,
 )
 from sqlalchemy.orm import relationship, column_property
@@ -15,18 +15,18 @@ from core.models.task import Task
 from database.models.mapper import mapper_registry
 
 task_table = Table(
-    "task",
+    "tasks",
     mapper_registry.metadata,
     Column("id", String(26), primary_key=True),
-    Column("project_id", String(26), ForeignKey("project.id"), nullable=False),
+    Column("project_id", String(26), ForeignKey("projects.id"), nullable=False),
     Column("project_name", String(100), nullable=False),
-    Column("user_id", String(26), ForeignKey("user.id"), nullable=False),
+    Column("user_id", String(26), ForeignKey("users.id"), nullable=False),
     Column("user_name", String(100), nullable=False),
     Column("title", String(100), nullable=False),
     Column("hours_required", Float, nullable=False),
     Column("description", String(255), nullable=True),
     Column("status", String(50), nullable=True),
-    Column("timestamp", BigInteger, nullable=False),
+    Column("created_at", DateTime(timezone=True), nullable=False),
     Column("hours_worked", Float, nullable=False, default=0.0),
     Column("returned", Boolean, nullable=True, default=False),
 )
@@ -51,8 +51,8 @@ mapper_registry.map_imperatively(
             cascade="all, delete-orphan",
             lazy="noload",
         ),
-        "last_updated": column_property(
-            select(func.max(Log.timestamp))  # type: ignore
+        "updated_at": column_property(
+            select(func.max(Log.created_at))  # type: ignore
             .where(Log.task_id == task_table.c.id)  # type: ignore
             .correlate_except(Log)
             .scalar_subquery()

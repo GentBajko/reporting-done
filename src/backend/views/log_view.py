@@ -43,7 +43,7 @@ def create_log(log: LogCreateModel, session: ISession) -> LogResponseModel:
 
         new_log = Log(
             id=log.id,
-            timestamp=timestamp,
+            created_at=datetime.now(),
             task_id=log.task_id,
             task_name=task.title,
             description=log.description,
@@ -51,7 +51,7 @@ def create_log(log: LogCreateModel, session: ISession) -> LogResponseModel:
             user_name=user.full_name,
             project_id=task.project_id,
             project_name=task.project_name,
-            hours_spent_today=log.hours_spent_today,
+            hours_spent=log.hours_spent,
             task_status=log.task_status,
         )
         if (
@@ -59,7 +59,7 @@ def create_log(log: LogCreateModel, session: ISession) -> LogResponseModel:
             and new_log._task_status != TaskStatus.DONE
         ):
             task.returned = True
-        task.hours_worked += log.hours_spent_today
+        task.hours_worked += log.hours_spent
         task.status = log.task_status
         task_repo.update(task)
 
@@ -112,7 +112,7 @@ def update_log(
         task_repo = Repository(s, Task)
         task = task_repo.get(id=log.task_id)
         if task:
-            task.hours_worked += log_update.hours_spent_today
+            task.hours_worked += log_update.hours_spent
             task.status = log_update.task_status
             task_repo.update(task)
 
@@ -136,7 +136,7 @@ def upsert_log(log: LogResponseModel, session: ISession) -> LogResponseModel:
         else:
             new_log = Log(
                 id=log.id or str(ULID()),
-                timestamp=log.timestamp or int(datetime.now().timestamp()),
+                created_at=log.created_at or datetime.now(),
                 task_id=log.task_id,
                 task_name=log.task_name,
                 description=log.description,
@@ -144,7 +144,7 @@ def upsert_log(log: LogResponseModel, session: ISession) -> LogResponseModel:
                 user_name=log.user_name,
                 project_id=log.project_id,
                 project_name=log.project_name,
-                hours_spent_today=log.hours_spent_today,
+                hours_spent=log.hours_spent,
                 task_status=log.task_status,
             )
             repo.create(new_log)
@@ -200,12 +200,11 @@ async def get_projects_with_recent_logs() -> Dict[Project, List[Log]]:
     session = await get_session()
     now = datetime.now(UTC)
     past_24h = now - timedelta(hours=24)
-    past_24h_timestamp = int(past_24h.timestamp())
 
     log_repository = Repository(session, Log)
     project_repository = Repository(session, Project)
 
-    recent_logs = log_repository.query(timestamp__gte=past_24h_timestamp)
+    recent_logs = log_repository.query(created_at__gte=past_24h)
 
     logs_by_project_id: Dict[str, List[Log]] = {}
     for log in recent_logs:

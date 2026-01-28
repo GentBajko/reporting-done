@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { HiCheckCircle, HiExclamationCircle, HiX } from "react-icons/hi";
 
 export type ToastType = "success" | "error" | "info";

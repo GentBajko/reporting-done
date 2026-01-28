@@ -19,22 +19,6 @@ interface DashboardSummaryData {
   is_admin_user: boolean;
 }
 
-interface SummaryProject {
-  id: string;
-  name: string;
-  archived: boolean;
-}
-
-interface SummaryTask {
-  id: string;
-  title: string;
-  status: string | null;
-}
-
-interface SummaryLog {
-  id: string;
-  timestamp: number;
-}
 
 const StatCard = ({
   title,

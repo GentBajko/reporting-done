@@ -41,27 +41,38 @@ class UserService:
         data: UserCreateDTO,
         session: ISession,
     ) -> Result[UserDTO, str]:
+        from core.enums import Roles, SubscriptionTier
+
         with session as s:
             repo = Repository(s, User)
-            
+
             existing = repo.query(email=data.email)
             if existing:
                 return Err(f"User with email '{data.email}' already exists")
-            
+
             hashed_password = self._auth_service.hash_password(data.password)
-            
+
+            # Split full_name into name and last_name
+            name_parts = data.full_name.split(" ", 1)
+            name = name_parts[0]
+            last_name = name_parts[1] if len(name_parts) > 1 else ""
+
             new_user = User(
                 id=str(ULID()),
                 email=data.email,
                 password=hashed_password,
-                full_name=data.full_name,
+                name=name,
+                last_name=last_name,
+                subscription=SubscriptionTier.FREE.value,
+                role_type=Roles.EDITOR.value,
+                limit=SubscriptionTier.FREE.ocr_page_limit,
                 permissions=data.permissions,
                 projects=[],
                 tasks=[],
             )
-            
+
             repo.create(new_user)
-            
+
             return Ok(UserDTO.model_validate(new_user.to_dict()))
     
     def get_by_id(
@@ -101,15 +112,21 @@ class UserService:
         with session as s:
             repo = Repository(s, User)
             user = repo.get(user_id)
-            
+
             if not user:
                 return Err(f"User with id '{user_id}' not found")
-            
+
             update_data = data.model_dump(exclude_unset=True)
-            
+
             for field, value in update_data.items():
                 if value is not None:
-                    setattr(user, field, value)
+                    # Handle full_name -> name/last_name conversion
+                    if field == "full_name":
+                        name_parts = value.split(" ", 1)
+                        user.name = name_parts[0]
+                        user.last_name = name_parts[1] if len(name_parts) > 1 else ""
+                    else:
+                        setattr(user, field, value)
             
             repo.update(user)
             

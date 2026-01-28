@@ -41,23 +41,21 @@ class LogService:
             user = user_repo.get(user_id)
             if not user:
                 return Err(f"User with id '{user_id}' not found")
-            
-            timestamp = int(datetime.now().timestamp())
-            
+
             was_done = task._status == TaskStatus.DONE
             new_status = TaskStatus(data.task_status) if data.task_status else None
             
             if was_done and new_status and new_status != TaskStatus.DONE:
                 task.returned = True
             
-            task.hours_worked += data.hours_spent_today
+            task.hours_worked += data.hours_spent
             task.status = data.task_status
-            task.last_updated = timestamp
+            task.updated_at = datetime.now()
             task_repo.update(task)
-            
+
             new_log = Log(
                 id=str(ULID()),
-                timestamp=timestamp,
+                created_at=datetime.now(),
                 task_id=task.id,
                 task_name=task.title,
                 description=data.description,
@@ -65,7 +63,7 @@ class LogService:
                 user_name=user.full_name,
                 project_id=task.project_id,
                 project_name=task.project_name,
-                hours_spent_today=data.hours_spent_today,
+                hours_spent=data.hours_spent,
                 task_status=data.task_status,
             )
             
@@ -107,17 +105,17 @@ class LogService:
             if not is_admin and log.user_id != user_id:
                 return Err("Not authorized to update this log")
             
-            old_hours = log.hours_spent_today
+            old_hours = log.hours_spent
             update_data = data.model_dump(exclude_unset=True)
-            
+
             for field, value in update_data.items():
                 if value is not None:
                     setattr(log, field, value)
-            
-            if data.hours_spent_today is not None:
+
+            if data.hours_spent is not None:
                 task = task_repo.get(log.task_id)
                 if task:
-                    hours_diff = data.hours_spent_today - old_hours
+                    hours_diff = data.hours_spent - old_hours
                     task.hours_worked += hours_diff
                     if task.hours_worked < 0:
                         task.hours_worked = 0
@@ -153,7 +151,7 @@ class LogService:
             
             task = task_repo.get(log.task_id)
             if task:
-                task.hours_worked -= log.hours_spent_today
+                task.hours_worked -= log.hours_spent
                 if task.hours_worked < 0:
                     task.hours_worked = 0
                 task_repo.update(task)
@@ -225,8 +223,8 @@ class LogService:
                     log.task_name,
                     log.user_name,
                     log.task_status,
-                    log.hours_spent_today,
-                    datetime.fromtimestamp(log.timestamp).strftime("%Y-%m-%d %H:%M:%S"),
+                    log.hours_spent,
+                    log.created_at.strftime("%Y-%m-%d %H:%M:%S"),
                 ])
             
             return Ok(output.getvalue().encode("utf-8"))

@@ -10,7 +10,7 @@ from core.models.user import User
 from core.models.project import Project
 from core.enums.premissions import Permissions
 from core.enums.task_status import TaskStatus
-from database.adapters.mysql import MySQL
+from database.adapters.postgresql import PostgreSQL
 from core.models.project_user import ProjectUser
 import database.models.log_mapper  # noqa: F401
 import database.models.task_mapper  # noqa: F401
@@ -133,7 +133,7 @@ for user in users:
         )
         availabilities.append(availability)
 
-with SQLAlchemySession(MySQL.session()) as s:
+with SQLAlchemySession(PostgreSQL.session()) as s:
     user_repo = Repository(s, User)
     project_repo = Repository(s, Project)
     task_repo = Repository(s, Task)

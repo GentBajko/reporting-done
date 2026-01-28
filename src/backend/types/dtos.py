@@ -1,8 +1,7 @@
 from typing import Sequence, Literal
-from datetime import date
+from datetime import date, datetime, time
 from dataclasses import dataclass, field
 from pydantic import BaseModel, EmailStr, Field, field_validator
-from backend.types.identifiers import UserId, ProjectId, TaskId, LogId
 
 DayAvailabilityStatus = Literal["Office", "Remote", "Off"]
 
@@ -27,7 +26,7 @@ class UserDTO(BaseModel):
     permissions: int
     projects: Sequence["ProjectDTO"] = Field(default_factory=list)
     tasks: Sequence["TaskDTO"] = Field(default_factory=list)
-    
+
     model_config = {"from_attributes": True}
 
 
@@ -36,7 +35,7 @@ class ProjectCreateDTO(BaseModel):
     email: EmailStr | None = None
     send_email: bool = False
     archived: bool = False
-    
+
     @field_validator("email", mode="before")
     @classmethod
     def empty_str_to_none(cls, v: str | None) -> str | None:
@@ -50,7 +49,7 @@ class ProjectUpdateDTO(BaseModel):
     email: EmailStr | None = None
     send_email: bool | None = None
     archived: bool | None = None
-    
+
     @field_validator("email", mode="before")
     @classmethod
     def empty_str_to_none(cls, v: str | None) -> str | None:
@@ -67,7 +66,7 @@ class ProjectDTO(BaseModel):
     archived: bool
     developers: Sequence["UserDTO"] = Field(default_factory=list)
     tasks: Sequence["TaskDTO"] = Field(default_factory=list)
-    
+
     model_config = {"from_attributes": True}
 
 
@@ -98,10 +97,10 @@ class LogDTO(BaseModel):
     user_name: str
     project_id: str
     project_name: str
-    hours_spent_today: float
+    hours_spent: float
     task_status: str
-    timestamp: int
-    
+    created_at: datetime
+
     model_config = {"from_attributes": True}
 
 
@@ -117,23 +116,23 @@ class TaskDTO(BaseModel):
     returned: bool = False
     description: str
     status: str | None = None
-    timestamp: int
-    last_updated: int | None = None
+    created_at: datetime
+    updated_at: datetime | None = None
     logs: Sequence[LogDTO] = Field(default_factory=list)
-    
+
     model_config = {"from_attributes": True}
 
 
 class LogCreateDTO(BaseModel):
     task_id: str
     description: str = Field(max_length=10000)
-    hours_spent_today: float = Field(gt=0, le=24)
+    hours_spent: float = Field(gt=0, le=24)
     task_status: str
 
 
 class LogUpdateDTO(BaseModel):
     description: str | None = Field(default=None, max_length=10000)
-    hours_spent_today: float | None = Field(default=None, gt=0, le=24)
+    hours_spent: float | None = Field(default=None, gt=0, le=24)
     task_status: str | None = None
 
 
@@ -141,7 +140,7 @@ class AvailabilityDTO(BaseModel):
     date: date
     status: DayAvailabilityStatus
     day_of_week: int = Field(ge=0, le=6)
-    
+
     model_config = {"from_attributes": True}
 
 
@@ -149,18 +148,18 @@ class EventCreateDTO(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=1000)
     event_type: str = Field(min_length=1, max_length=50)
-    event_date: str
-    start_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
-    end_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
+    event_date: date
+    start_time: time | None = None
+    end_time: time | None = None
 
 
 class EventUpdateDTO(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
     description: str | None = Field(default=None, max_length=1000)
     event_type: str | None = Field(default=None, min_length=1, max_length=50)
-    event_date: str | None = None
-    start_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
-    end_time: str | None = Field(default=None, pattern=r"^\d{2}:\d{2}$")
+    event_date: date | None = None
+    start_time: time | None = None
+    end_time: time | None = None
 
 
 class EventDTO(BaseModel):
@@ -169,11 +168,11 @@ class EventDTO(BaseModel):
     title: str
     description: str | None = None
     event_type: str
-    event_date: int
-    start_time: str | None = None
-    end_time: str | None = None
-    created_at: int
-    
+    event_date: date
+    start_time: time | None = None
+    end_time: time | None = None
+    created_at: datetime
+
     model_config = {"from_attributes": True}
 
 
@@ -184,11 +183,10 @@ class MonthlyAvailabilityDTO(BaseModel):
     month: int = Field(ge=1, le=12)
     availability: Sequence[AvailabilityDTO]
     office_days_count: int = Field(ge=0)
-    
+
     model_config = {"from_attributes": True}
 
 
 UserDTO.model_rebuild()
 ProjectDTO.model_rebuild()
 TaskDTO.model_rebuild()
-

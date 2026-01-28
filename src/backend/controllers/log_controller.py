@@ -25,13 +25,13 @@ log_router = APIRouter(prefix="/log")
 class LogCreateRequest(BaseModel):
     task_id: str
     description: str = Field(max_length=10000)
-    hours_spent_today: float = Field(gt=0, le=24)
+    hours_spent: float = Field(gt=0, le=24)
     task_status: str
 
 
 class LogUpdateRequest(BaseModel):
     description: str | None = Field(default=None, max_length=10000)
-    hours_spent_today: float | None = Field(default=None, gt=0, le=24)
+    hours_spent: float | None = Field(default=None, gt=0, le=24)
     task_status: str | None = None
 
 
@@ -54,7 +54,7 @@ async def create_log_endpoint(
     dto = LogCreateDTO(
         task_id=body.task_id,
         description=body.description,
-        hours_spent_today=body.hours_spent_today,
+        hours_spent=body.hours_spent,
         task_status=body.task_status,
     )
     
@@ -101,13 +101,13 @@ def get_all_logs_endpoint(
     if task_status:
         filters["task_status"] = task_status
     if date_from is not None:
-        filters["timestamp__gte"] = date_from
+        filters["created_at__gte"] = date_from
     if date_to is not None:
-        filters["timestamp__lte"] = date_to
+        filters["created_at__lte"] = date_to
     if hours_min is not None:
-        filters["hours_spent_today__gte"] = hours_min
+        filters["hours_spent__gte"] = hours_min
     if hours_max is not None:
-        filters["hours_spent_today__lte"] = hours_max
+        filters["hours_spent__lte"] = hours_max
     
     if is_admin(current_user):
         result = log_service.list_all(pagination, session, **filters)
@@ -172,7 +172,7 @@ async def update_log_endpoint(
 ):
     dto = LogUpdateDTO(
         description=body.description,
-        hours_spent_today=body.hours_spent_today,
+        hours_spent=body.hours_spent,
         task_status=body.task_status,
     )
     

@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from ulid import ULID
@@ -9,7 +9,7 @@ from core.enums.task_status import TaskStatus
 class Log:
     if TYPE_CHECKING:
         id: str
-        timestamp: int
+        created_at: datetime
         task_id: str
         task_name: str
         description: str
@@ -17,13 +17,13 @@ class Log:
         user_name: str
         project_id: str
         project_name: str
-        hours_spent_today: float
+        hours_spent: float
         task_status: str
-    
+
     def __init__(
         self,
         id: str,
-        timestamp: int,
+        created_at: datetime,
         task_id: str,
         task_name: str,
         description: str,
@@ -31,11 +31,11 @@ class Log:
         user_name: str,
         project_id: str,
         project_name: str,
-        hours_spent_today: float,
+        hours_spent: float,
         task_status: str,
     ):
         self.id = id
-        self.timestamp = timestamp
+        self.created_at = created_at
         self.task_id = task_id
         self.task_name = task_name
         self.description = description
@@ -43,16 +43,12 @@ class Log:
         self.user_name = user_name
         self.project_id = project_id
         self.project_name = project_name
-        self.hours_spent_today = hours_spent_today
+        self.hours_spent = hours_spent
         self.task_status = task_status
 
     @property
     def _id(self) -> ULID:
         return ULID.from_str(self.id)
-
-    @property
-    def _timestamp(self) -> datetime:
-        return datetime.fromtimestamp(self.timestamp)
 
     @property
     def _task_id(self) -> ULID:
@@ -70,10 +66,10 @@ class Log:
     def _task_status(self) -> TaskStatus:
         return TaskStatus(self.task_status)
 
-    def to_dict(self, visited=None):
+    def to_dict(self, visited: set[int] | None = None) -> dict:
         return {
             "id": self.id,
-            "timestamp": self.timestamp,
+            "created_at": self.created_at.isoformat(),
             "task_id": self.task_id,
             "task_name": self.task_name,
             "description": self.description,
@@ -81,15 +77,26 @@ class Log:
             "user_name": self.user_name,
             "project_id": self.project_id,
             "project_name": self.project_name,
-            "hours_spent_today": self.hours_spent_today,
+            "hours_spent": self.hours_spent,
             "task_status": self.task_status,
         }
 
     @classmethod
-    def from_dict(cls, data):
+    def from_dict(cls, data: dict) -> "Log":
+        # Support legacy field name
+        created_at = data.get("created_at") or data.get("timestamp")
+        if isinstance(created_at, str):
+            created_at = datetime.fromisoformat(created_at)
+        elif isinstance(created_at, int):
+            # Legacy support: convert epoch timestamp
+            created_at = datetime.fromtimestamp(created_at, tz=timezone.utc)
+
+        # Support legacy field name
+        hours_spent = data.get("hours_spent", data.get("hours_spent_today", 0.0))
+
         return cls(
             id=data["id"],
-            timestamp=data["timestamp"],
+            created_at=created_at,
             task_id=data["task_id"],
             task_name=data["task_name"],
             description=data["description"],
@@ -97,6 +104,6 @@ class Log:
             user_name=data["user_name"],
             project_id=data["project_id"],
             project_name=data["project_name"],
-            hours_spent_today=data["hours_spent_today"],
+            hours_spent=hours_spent,
             task_status=data["task_status"],
         )

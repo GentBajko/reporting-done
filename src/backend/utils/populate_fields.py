@@ -51,10 +51,10 @@ def populate_task_fields(task_dict: dict) -> None:
             log.setdefault("task_name", task_dict.get("title"))
             log.setdefault("task_status", task_dict.get("status"))
             log.setdefault(
-                "hours_spent_today", log.get("hours_spent_today", 0)
+                "hours_spent", log.get("hours_spent", 0)
             )
             log.setdefault("description", log.get("description", ""))
-            log.setdefault("timestamp", log.get("timestamp", 0))
+            log.setdefault("created_at", log.get("created_at", 0))
             log.setdefault("user_id", task_dict.get("user_id"))
             log.setdefault("task_id", task_dict.get("id"))
 

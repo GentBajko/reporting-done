@@ -10,7 +10,7 @@ from backend.models import (
     UserProfileUpdateModel,
 )
 from core.models.log import Log
-from database.models import user_mapper  # noqa F401
+from database.models import user_table  # noqa F401 - Import to register User mapping
 from core.models.task import Task
 from core.models.user import User
 from core.models.project import Project
@@ -37,12 +37,24 @@ def create_user(user: UserCreateModel, session: ISession) -> UserResponseModel:
     Returns:
         UserResponseModel: A validated response model representing the newly created user.
     """
+    from core.enums import Roles, SubscriptionTier
+
     ph = PasswordHasher()
     hashed_password = ph.hash(user.password)
+
+    # Split full_name into name and last_name
+    name_parts = user.full_name.split(" ", 1)
+    name = name_parts[0]
+    last_name = name_parts[1] if len(name_parts) > 1 else ""
+
     new_user = User(
         email=user.email,
-        full_name=user.full_name,
         password=hashed_password,
+        name=name,
+        last_name=last_name,
+        subscription=SubscriptionTier.FREE.value,
+        role_type=Roles.EDITOR.value,
+        limit=SubscriptionTier.FREE.ocr_page_limit,
         permissions=user.permissions,
         projects=[],
         tasks=[],
@@ -101,7 +113,7 @@ def update_user(
     user_id: str, user_update_data: UserProfileUpdateModel, session: ISession
 ) -> UserResponseModel:
     """
-    Update an existing user's profile information (full_name, email).
+    Update an existing user's profile information (name, last_name, email).
 
     This function rebuilds the necessary models, retrieves the existing user by `user_id`, and updates
     the user's attributes with the provided `user_update_data` data. It then persists the changes to the
@@ -134,7 +146,13 @@ def update_user(
         something_updated = False
         for key, value in update_data.items():
             if key in allowed_fields_to_update:
-                setattr(existing_user, key, value)
+                # Handle full_name -> name/last_name conversion
+                if key == "full_name":
+                    name_parts = value.split(" ", 1)
+                    existing_user.name = name_parts[0]
+                    existing_user.last_name = name_parts[1] if len(name_parts) > 1 else ""
+                else:
+                    setattr(existing_user, key, value)
                 something_updated = True
             # else: log a warning or ignore fields not in allowed_fields_to_update
 
@@ -161,20 +179,37 @@ def upsert_user(user: UserCreateModel, session: ISession) -> UserResponseModel:
     Returns:
         UserResponseModel: A validated response model with the upserted user data.
     """
+    from core.enums import Roles, SubscriptionTier
+
     with session as s:
         repository = Repository(s, User)
         existing_user = repository.query(email=user.email)
 
         if existing_user:
             user_obj = existing_user[0]
-            for key, value in user.model_dump(exclude_unset=True).items():
+            update_data = user.model_dump(exclude_unset=True)
+            # Handle full_name -> name/last_name conversion for updates
+            if "full_name" in update_data:
+                name_parts = update_data.pop("full_name").split(" ", 1)
+                update_data["name"] = name_parts[0]
+                update_data["last_name"] = name_parts[1] if len(name_parts) > 1 else ""
+            for key, value in update_data.items():
                 setattr(user_obj, key, value)
             repository.update(user_obj)
         else:
+            # Split full_name into name and last_name
+            name_parts = user.full_name.split(" ", 1)
+            name = name_parts[0]
+            last_name = name_parts[1] if len(name_parts) > 1 else ""
+
             user_obj = User(
                 email=user.email,
-                full_name=user.full_name,
                 password=user.password,
+                name=name,
+                last_name=last_name,
+                subscription=SubscriptionTier.FREE.value,
+                role_type=Roles.EDITOR.value,
+                limit=SubscriptionTier.FREE.ocr_page_limit,
                 permissions=user.permissions,
             )
             repository.create(user_obj)

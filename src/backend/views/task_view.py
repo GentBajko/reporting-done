@@ -41,7 +41,7 @@ def create_task(task: TaskCreateModel, session: ISession) -> TaskResponseModel:
             title=task.title,
             hours_required=task.hours_required,
             description=task.description,
-            timestamp=int(datetime.datetime.now().timestamp()),
+            created_at=datetime.datetime.now(datetime.timezone.utc),
             logs=[],
             status=task.status,
         )
@@ -116,7 +116,7 @@ def upsert_task(
                 hours_required=task.hours_required,
                 description=task.description,
                 status=task.status,
-                timestamp=int(datetime.datetime.now().timestamp()),
+                created_at=datetime.datetime.now(datetime.timezone.utc),
                 logs=[],
             )
             repo.create(new_task)
